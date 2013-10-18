@@ -10,6 +10,7 @@ extern map<string, Table> ENV;
 Table parse(const string &query);
 Table create_query(const string &query);
 Table insert_into(const string &query);
+Table cross_table(const string &query);
 
 class SYNTAX_ERROR {
 public:

@@ -1,8 +1,10 @@
 #include "parser.h"
 
 namespace {
-	const int INSTRUCTIONS_COUNT = 2;
-	string instructions[] = {"create table", "insert into"};
+	const int START_INSTRUCTIONS_COUNT = 4;
+	string start_instructions[] = {"create table", "insert into", "project", "select"};
+	const int MIDDLE_INSTRUCTIONS_COUNT = 1;
+	string middle_instructions[] = {"X"};
 }
 
 Table create_table(const string &query) {
@@ -82,15 +84,41 @@ Table insert_into(const string &query) {
 	return Table("bad_table", attr_names, attr_types);
 }
 
+Table cross_table(const string &query) {
+	Tokenizer t(query);
+	string table1 = t.next_token();
+	t.next_token();
+	string table2 = t.next_token();
+	if (ENV.find(table1) == ENV.end()) {
+		throw SYNTAX_ERROR("cross(X)", "Table \'" + table1 + "\'' doesn't exist");
+	}
+	if (ENV.find(table2) == ENV.end()) {
+		throw SYNTAX_ERROR("cross(X)", "Table \'" + table2 + "\'' doesn't exist");
+	}
+	return ENV[table1].cross(ENV[table2]);
+}
+
 Table parse(const string &query) {
-	for (int i = 0; i < INSTRUCTIONS_COUNT; i++) {
-		if (query.find(instructions[i]) == 0) {
+	for (int i = 0; i < START_INSTRUCTIONS_COUNT; i++) {
+		if (query.find(start_instructions[i]) == 0) {
 			switch (i) {
 				case 0:
 					return create_table(query);
 					break;
 				case 1:
 					return insert_into(query);
+					break;
+			}
+		}
+	}
+	Tokenizer t(query);
+	t.next_token();
+	string op = t.next_token();
+	for (int i = 0; i < MIDDLE_INSTRUCTIONS_COUNT; i++) {
+		if (op == middle_instructions[i]) {
+			switch (i) {
+				case 0:
+					return cross_table(query);
 					break;
 			}
 		}

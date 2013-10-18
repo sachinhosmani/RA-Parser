@@ -8,23 +8,26 @@ using namespace std;
 map<string, Table> ENV;
 
 int main() {
-	/*map<string, string> attr_types;
-	attr_types.insert(pair<string, string>("ID", "int"));
-	attr_types.insert(pair<string, string>("Name", "varchar"));
-	Table t(attr_types);
-	map<string, boost::any> m;
-	m.insert(pair<string, int>("ID", 2));
-	m.insert(pair<string, string>("Name", "John"));
-	t.insert_tuple(m);
-	m.clear();
-	m.insert(pair<string, int>("ID", 5));
-	m.insert(pair<string, string>("Name", "Rambo"));
-	t.insert_tuple(m);
-	m.clear();
-	m.insert(pair<string, int>("ID", 23));
-	m.insert(pair<string, string>("Name", "X"));
-	t.insert_tuple(m);
-	t.print();*/
+	vector<string> attr_names;
+	attr_names.push_back("Name");
+	attr_names.push_back("ID");
+	vector<string> attr_types;
+	attr_types.push_back("varchar");
+	attr_types.push_back("int");
+	Table t("table1", attr_names, attr_types);
+	ENV.insert(pair<string, Table>("table1", t));
+	t = Table("table2", attr_names, attr_types);
+	ENV.insert(pair<string, Table>("table2", t));
+
+	Tuple t1;
+	t1.insert(pair<string, boost::any>("Name", string("A")));
+	t1.insert(pair<string, boost::any>("ID", 6));
+	ENV["table1"].insert_tuple(t1);
+	Tuple t2;
+	t2.insert(pair<string, boost::any>("Name", string("B")));
+	t2.insert(pair<string, boost::any>("ID", 5));
+	ENV["table2"].insert_tuple(t2);
+
 	string s;
 	string query = "";
 	do {

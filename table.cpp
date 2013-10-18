@@ -44,15 +44,17 @@ void Table::insert_tuple(const vector<string> &values) {
 
 Table Table::cross(const Table &t) const {
 	vector<string> c_attr_names, c_attr_types;
-	map<string, string>::const_iterator it = attr_type_map.begin();
-	for (; it != attr_type_map.end(); it++) {
-		c_attr_names.push_back(it->first + "1");
-		c_attr_types.push_back(it->second);
+	vector<string>::const_iterator it = attr_names.begin();
+	for (; it != attr_names.end(); it++) {
+		c_attr_names.push_back(*it + "1");
+		string tmp = (attr_type_map.find(*it))->second;
+		c_attr_types.push_back(tmp);
 	}
-	map<string, string>::const_iterator it2 = t.attr_type_map.begin();
-	for (; it2 != t.attr_type_map.end(); it2++) {
-		c_attr_names.push_back(it2->first + "2");
-		c_attr_types.push_back(it2->second);
+	vector<string>::const_iterator it2 = t.attr_names.begin();
+	for (; it2 != t.attr_names.end(); it2++) {
+		c_attr_names.push_back(*it2 + "2");
+		string tmp = (t.attr_type_map.find(*it2))->second;
+		c_attr_types.push_back(tmp);
 	}
 	Table crossed(name + " x " + t.name, c_attr_names, c_attr_types);
 	vector<Tuple>::const_iterator it3 = tuples.begin();
@@ -76,16 +78,16 @@ Table Table::cross(const Table &t) const {
 }
 
 void Table::print() {
-	map<string, string>::iterator it0 = attr_type_map.begin();
-	for (; it0 != attr_type_map.end(); it0++) {
-		cout << it0->first << "   ";
+	vector<string>::iterator it0 = attr_names.begin();
+	for (; it0 != attr_names.end(); it0++) {
+		cout << *it0 << "   ";
 	}
 	cout << endl;
 	vector<Tuple>::iterator it1 = tuples.begin();
 	for (; it1 != tuples.end(); it1++) {
-		map<string, boost::any>::iterator it2 = it1->begin();
-		for (; it2 != it1->end(); it2++) {
-			generic_print(attr_type_map[it2->first], it2->second);
+		it0 = attr_names.begin();
+		for (; it0 != attr_names.end(); it0++) {
+			generic_print(attr_type_map[*it0], (*it1)[*it0]);
 			cout << "   ";
 		}
 		cout << "\n";
