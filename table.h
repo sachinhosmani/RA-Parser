@@ -22,6 +22,7 @@ public:
 	void insert_tuple(const Tuple &t);
 	void insert_tuple(const vector<string> &values);
 	Table cross(const Table &t) const;
+	Table project(const vector<string> &a_attr_names);
 	void print();
 };
 

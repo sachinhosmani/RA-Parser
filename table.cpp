@@ -70,11 +70,33 @@ Table Table::cross(const Table &t) const {
 			for (it6 = it4->begin(); it6 != it4->end(); it6++) {
 				tmp.insert(pair<string, boost::any>(it6->first + "2", it6->second));
 			}
+			crossed.insert_tuple(tmp);
+			tmp.clear();
 		}
-		crossed.insert_tuple(tmp);
-		tmp.clear();
 	}
 	return crossed;
+}
+
+Table Table::project(const vector<string> &a_attr_names) {
+	vector<string> p_attr_names;
+	vector<string> p_attr_types;
+	vector<string>::const_iterator it = a_attr_names.begin();
+	for (; it != a_attr_names.end(); it++) {
+		p_attr_names.push_back(*it);
+		p_attr_types.push_back(attr_type_map[*it]);
+	}
+	Table projected("p" + name, p_attr_names, p_attr_types);
+	vector<Tuple>::iterator it2 = tuples.begin();
+	Tuple tmp;
+	for (; it2 != tuples.end(); it2++) {
+		it = a_attr_names.begin();
+		for (; it != a_attr_names.end(); it++) {
+			tmp.insert(pair<string, boost::any>(*it, (*it2)[*it]));
+		}
+		projected.insert_tuple(tmp);
+		tmp.clear();
+	}
+	return projected;
 }
 
 void Table::print() {

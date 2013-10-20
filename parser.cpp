@@ -43,7 +43,6 @@ Table create_table(const string &query) {
 }
 
 Table insert_into(const string &query) {
-	string value;
 	vector<string> values;
 	try {
 		Tokenizer t(query);
@@ -62,8 +61,8 @@ Table insert_into(const string &query) {
 		if (token != "(")
 			throw SYNTAX_ERROR("insert into", "expected (");
 		while (true) {
-			value = token = t.next_token();
-			values.push_back(value);
+			token = t.next_token();
+			values.push_back(token);
 			token = t.next_token();
 			if (token != ",") {
 				if (token != ")") {
@@ -98,16 +97,43 @@ Table cross_table(const string &query) {
 	return ENV[table1].cross(ENV[table2]);
 }
 
+Table project_table(const string &query) {
+	Tokenizer t(query);
+	t.next_token();
+	if (t.next_token() != "(") {
+		throw SYNTAX_ERROR("project", "Missing \'(");
+	}
+	vector<string> attrs;
+	string token;
+	while (true) {
+		token = t.next_token();
+		attrs.push_back(token);
+		token = t.next_token();
+		if (token != ",") {
+			if (token != ")") {
+				throw SYNTAX_ERROR("project", "expected )");
+			} else {
+				break;
+			}
+		}
+	}
+	string table_name = t.next_token();
+	if (ENV.find(table_name) == ENV.end()) {
+		throw SYNTAX_ERROR("project", "Table \'" + table_name + "\'' doesn't exist");
+	}
+	return ENV[table_name].project(attrs);
+}
+
 Table parse(const string &query) {
 	for (int i = 0; i < START_INSTRUCTIONS_COUNT; i++) {
 		if (query.find(start_instructions[i]) == 0) {
 			switch (i) {
 				case 0:
 					return create_table(query);
-					break;
 				case 1:
 					return insert_into(query);
-					break;
+				case 2:
+					return project_table(query);
 			}
 		}
 	}
@@ -119,7 +145,6 @@ Table parse(const string &query) {
 			switch (i) {
 				case 0:
 					return cross_table(query);
-					break;
 			}
 		}
 	}
