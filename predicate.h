@@ -3,6 +3,7 @@
 
 #include "tokenizer.h"
 #include <iostream>
+#include <boost/algorithm/string.hpp>
 
 using namespace std;
 

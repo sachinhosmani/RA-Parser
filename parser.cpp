@@ -124,6 +124,36 @@ Table project_table(const string &query) {
 	return ENV[table_name].project(attrs);
 }
 
+Table select_table(const string &query) {
+	Tokenizer t(query);
+	t.next_token();
+	int b_ctr = 0;
+	string token;
+	string select_condition = "";
+	do {
+		token = t.next_token();
+		if (token == "(")
+			b_ctr++;
+		else if (token == ")")
+			b_ctr--;
+		select_condition += token + " ";
+	} while (b_ctr != 0 && !t.eof());
+	if (b_ctr != 0)
+		throw SYNTAX_ERROR("select", "Incorrect condition syntax");
+	try {
+		string table_name = t.next_token();
+		if (ENV.find(table_name) == ENV.end()) {
+			throw SYNTAX_ERROR("select", "Table \'" + table_name + "\'' doesn't exist");
+		}
+		cout << select_condition << endl;
+		Predicate *p = create_predicate(select_condition);
+		cout << "done\n";
+		return ENV[table_name].select(p);
+	} catch (TABLE_ERROR te) {
+		throw SYNTAX_ERROR("select", te.msg);
+	}
+}
+
 Table parse(const string &query) {
 	for (int i = 0; i < START_INSTRUCTIONS_COUNT; i++) {
 		if (query.find(start_instructions[i]) == 0) {
@@ -134,6 +164,8 @@ Table parse(const string &query) {
 					return insert_into(query);
 				case 2:
 					return project_table(query);
+				case 3:
+					return select_table(query);
 			}
 		}
 	}

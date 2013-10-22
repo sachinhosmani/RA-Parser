@@ -105,7 +105,6 @@ Expression_Tree *create_expression_tree(const string &e_query) {
 	cout << "exp: " << e_query << endl;
 	Expression_Tree *e = new Expression_Tree;
 	Expression_Tree *first;
-	string data = "";
 	string token, op;
 	string until = "";
 	int b_ctr = 0;
@@ -138,12 +137,13 @@ Expression_Tree *create_expression_tree(const string &e_query) {
 		e->left = NULL;
 		e->right = NULL;
 		e->data = until;
+		boost::trim(e->data);
 	}
 	else {
-		cout << "op " << until << endl;
+		cout << "op " << op << endl;
 		e->left = first;
 		e->right = create_expression_tree(until);
-		e->data = predicate_op_sym_to_code(op);
+		e->data = op;
 	}
 	return e;
 }

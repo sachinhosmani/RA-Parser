@@ -131,9 +131,9 @@ bool Table::satisfies(Predicate *p, const Tuple &t) {
 	if (!p)
 		throw TABLE_ERROR("Invalid predicate passed");
 	if (p->op > 0) {
-		if (PREDICATE_OP_SYMBOLS[p->op] == "and") {
+		if (PREDICATE_OP_SYMBOLS[p->op - 1] == "and") {
 			return Table::satisfies(p->left, t) && Table::satisfies(p->right, t);
-		} else if (PREDICATE_OP_SYMBOLS[p->op] == "or") {
+		} else if (PREDICATE_OP_SYMBOLS[p->op - 1] == "or") {
 			return Table::satisfies(p->left, t) || Table::satisfies(p->right, t);
 		} else {
 			throw TABLE_ERROR("Expected either \'and\' or \'or\'");
@@ -146,6 +146,7 @@ bool Table::satisfies(Predicate *p, const Tuple &t) {
 bool Table::satisfies(Simple_Predicate *p, const Tuple &t) {
 	if (!p)
 		throw TABLE_ERROR("Invalid predicate passed");
+	cout << "here\n";
 	boost::any left = Table::parse_e_tree(p->left, t);
 	boost::any right = Table::parse_e_tree(p->right, t);
 	try {
@@ -164,7 +165,8 @@ boost::any Table::parse_e_tree(Expression_Tree *e, const Tuple &t) {
 			int tmp = boost::lexical_cast<int>(e->data);
 			return boost::any(tmp);
 		} else if (is_string_literal(e->data)) {
-			return e->data;
+			string trimmed = (e->data).substr(1, (e->data).length() - 2);
+			return boost::any(trimmed);
 		} else {
 			Tuple::const_iterator it = t.find(e->data);
 			if (it == t.end())
@@ -207,11 +209,12 @@ boost::any Table::parse_e_tree(Expression_Tree *e, const Tuple &t) {
 }
 
 bool check_truth(boost::any a, boost::any b, int cond) {
+	cout << "entered" <<  cond << "\n";
 	if (a.type() != b.type())
 		throw TABLE_ERROR("Incompatible types used in condition");
 	if (cond < 0)
 		throw TABLE_ERROR("Invalid condition passed");
-	string cond_sym = COND_OP_SYMBOLS[cond];
+	string cond_sym = COND_OP_SYMBOLS[cond - 1];
 	if (a.type() == typeid(string)) {
 		if (cond_sym == "==") {
 			return boost::any_cast<string>(a) == boost::any_cast<string>(b);
@@ -220,17 +223,17 @@ bool check_truth(boost::any a, boost::any b, int cond) {
 		}
 	}
 	else if (a.type() == typeid(int)) {
-		int left = atoi((boost::any_cast<string>(a)).c_str());
-		int right = atoi((boost::any_cast<string>(b)).c_str());
-		if (COND_OP_SYMBOLS[cond] == "<") {
+		int left = boost::any_cast<int>(a);
+		int right = boost::any_cast<int>(b);
+		if (cond_sym == "<") {
 			return left < right;
-		} else if (COND_OP_SYMBOLS[cond] == ">") {
+		} else if (cond_sym == ">") {
 			return left > right;
-		} else if (COND_OP_SYMBOLS[cond] == "==") {
+		} else if (cond_sym == "==") {
 			return left == right;
-		} else if (COND_OP_SYMBOLS[cond] == "<=") {
+		} else if (cond_sym == "<=") {
 			return left <= right;
-		} else if (COND_OP_SYMBOLS[cond] == ">=") {
+		} else if (cond_sym == ">=") {
 			return left >= right;
 		} else {
 			throw TABLE_ERROR("Unsupported condition type \'" + cond_sym + "\' passed");
