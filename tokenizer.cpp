@@ -2,6 +2,7 @@
 
 Tokenizer::Tokenizer(const string &in) {
 	input = in;
+	boost::trim(input);
 	ss.str(input);
 }
 

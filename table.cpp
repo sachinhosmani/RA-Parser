@@ -13,6 +13,7 @@ Table::Table() {
 
 Table::Table(const string &a_name, const vector<string> &a_attr_names, const vector<string> &a_attr_types) {
 	attr_names = a_attr_names;
+	attr_types = a_attr_types;
 	vector<string>::const_iterator it = a_attr_names.begin();
 	vector<string>::const_iterator it2 = a_attr_types.begin();
 	for(; it != a_attr_names.end() && it2 != a_attr_types.end(); it++, it2++) {
@@ -99,6 +100,16 @@ Table Table::project(const vector<string> &a_attr_names) {
 	return projected;
 }
 
+Table Table::select(Predicate *p) {
+	Table selected("s" + name, attr_names, attr_types);
+	vector<Tuple>::iterator it = tuples.begin();
+	for (; it != tuples.end(); it++) {
+		if (Table::satisfies(p, *it))
+			selected.insert_tuple(*it);
+	}
+	return selected;
+}
+
 void Table::print() {
 	vector<string>::iterator it0 = attr_names.begin();
 	for (; it0 != attr_names.end(); it0++) {
@@ -113,5 +124,128 @@ void Table::print() {
 			cout << "   ";
 		}
 		cout << "\n";
+	}
+}
+
+static bool Table::satisfies(Predicate *p, const Tuple &t) {
+	if (!p)
+		throw TABLE_ERROR("Invalid predicate passed");
+	if (p->op > 0) {
+		if (PREDICATE_OP_SYMBOLS[p->op] == "and") {
+			return Table::satisfies(p->left, t) && Table::satisfies(p->right, t);
+		} else if (PREDICATE_OP_SYMBOLS[p->op] == "or") {
+			return Table::satisfies(p->left, t) || Table::satisfies(p->right, t);
+		} else {
+			throw TABLE_ERROR("Expected either \'and\' or \'or\'");
+		}
+	} else {
+		return Table::satisfies(p->sp, t);
+	}
+}
+
+static bool Table::satisfies(Simple_Predicate *p, const Tuple &t) {
+	if (!p)
+		throw TABLE_ERROR("Invalid predicate passed");
+	boost::any left = Table::parse_e_tree(p->left, t);
+	boost::any right = Table::parse_e_tree(p->right, t);
+	try {
+		bool res = check_truth(left, right, p->cond);
+		return res;
+	} catch (TABLE_ERROR t) {
+		throw t;
+	}
+}
+
+static boost::any Table::parse_e_tree(Expression_Tree *e, const Tuple &t) {
+	if (!e)
+		throw TABLE_ERROR("invalid expression resulted");
+	if (!e->left || !e->right) {
+		if (is_int_literal(e->data)) {
+			int tmp = boost::lexical_cast(e->data);
+			return boost::any(tmp);
+		} else if (is_string_literal(e->data)) {
+			return e->data;
+		} else {
+			if (t.find(e->data) == t.end())
+				throw TABLE_ERROR("No such attribute \'" + e->data + "\' exists");
+			else {
+				return t[e->data];
+			}
+		}
+
+	} else {
+		boost::any left = Table::parse_e_tree(e->left, t);
+		boost::any right = Table::parse_e_tree(e->right, t);
+		if (left.type() != right.type())
+			throw TABLE_ERROR("Incompatible types for operation \'" + e->op + "\'");
+		if (left.type() == typeid(string)) {
+			if (e->op == "+") {
+				return boost::any((boost::any_cast<string>(left) +
+					   boost::any_cast<string>(right)));
+			} else {
+				throw TABLE_ERROR("Only + supported on strings")
+			}
+		} else if (left.type() == typeid(int)){
+			if (e->op == "+")
+				return boost::any((boost::any_cast<int>(left) +
+					   boost::any_cast<int>(right)));
+			else if (e->op == "-")
+				return boost::any((boost::any_cast<int>(left) -
+					   boost::any_cast<int>(right)));
+			else if (e->op == "*")
+				return boost::any((boost::any_cast<int>(left) *
+					   boost::any_cast<int>(right)));
+			else if (e->op == "/")
+				return boost::any((boost::any_cast<int>(left) /
+					   boost::any_cast<int>(right)));
+			else {
+				throw TABLE_ERROR("Unsupported operation \'" + e->op + "\'")
+			}
+		}
+	}
+}
+
+static bool check_truth(boost::any a, boost::any b, int cond) {
+	if (left.type() != right.type())
+		throw TABLE_ERROR("Incompatible types used in condition");
+	if (cond < 0)
+		throw TABLE_ERROR("Invalid condition passed");
+	string cond_sym = COND_OP_SYMBOLS[cond];
+	if (left.type() == typeid(string)) {
+		if (cond_sym == "==") {
+			return boost::any_cast<string>(a) == boost::any_cast<string>(b);
+		} else {
+			throw TABLE_ERROR("Unsupported condition type \'" + "\'");
+		}
+	}
+	else if (left.type() == typeid(int)) {
+		int left = atoi((boost::any_cast<string>(a)).c_str());
+		int right = atoi((boost::any_cast<string>(b)).c_str());
+		if (COND_OP_SYMBOLS[cond] == "<") {
+			return left < right;
+		} else if (COND_OP_SYMBOLS[cond] == ">") {
+			return left > right;
+		} else if (COND_OP_SYMBOLS[cond] == "==") {
+			return left == right;
+		} else if (COND_OP_SYMBOLS[cond] == "<=") {
+			return left <= right;
+		} else if (COND_OP_SYMBOLS[cond] == ">=") {
+			return left >= right;
+		} else {
+			throw TABLE_ERROR("Unsupported condition type \'" + "\'");
+		}
+	}
+}
+
+static bool is_string_literal(const string &s) {
+	return s.length() > 2 && s[0] == '\"' && s[s.length() - 1] == '\"';
+}
+
+static bool is_int_literal(const string &s) {
+	try {
+		int tmp = boost::lexical_cast<int>(s);
+		return true;
+	} catch (...) {
+		return false;
 	}
 }

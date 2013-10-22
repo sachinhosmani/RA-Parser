@@ -2,6 +2,7 @@
 #include <string>
 #include "parser.h"
 #include "table.h"
+#include "predicate.h"
 
 using namespace std;
 
@@ -52,6 +53,7 @@ int main() {
 	t2.insert(pair<string, boost::any>("Phone", 56767867));
 	ENV["table2"].insert_tuple(t2);
 
+	Predicate *p = create_predicate("(((hi + hello) - (5 * cool)) < 5)");
 	string s;
 	string query = "";
 	do {

@@ -1,6 +1,10 @@
+#ifndef TOKENIZER_H
+#define TOKENIZER_H
+
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <boost/algorithm/string.hpp>
 
 using namespace std;
 
@@ -14,3 +18,5 @@ public:
 };
 
 class EOF_ERROR {};
+
+#endif

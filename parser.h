@@ -1,3 +1,6 @@
+#ifndef PARSER_H
+#define PARSER_H
+
 #include <iostream>
 #include "tokenizer.h"
 #include <string>
@@ -21,3 +24,5 @@ public:
 		msg = a_msg;
 	}
 };
+
+#endif

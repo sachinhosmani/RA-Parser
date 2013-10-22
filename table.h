@@ -6,6 +6,7 @@
 #include <boost/any.hpp>
 #include <string>
 #include <iostream>
+#include "predicate.h"
 
 using namespace std;
 
@@ -15,6 +16,7 @@ class Table {
 public:
 	vector<Tuple> tuples;
 	vector<string> attr_names;
+	vector<string> attr_types;
 	map<string, string> attr_type_map;
 	string name;
 	Table();
@@ -23,7 +25,9 @@ public:
 	void insert_tuple(const vector<string> &values);
 	Table cross(const Table &t) const;
 	Table project(const vector<string> &a_attr_names);
+	Table select(Predicate *p);
 	void print();
+	static bool satisfies(Predicate *p, const Tuple &t);
 };
 
 class TABLE_ERROR {
@@ -31,4 +35,7 @@ public:
 	string msg;
 	inline TABLE_ERROR(const string &a_msg):msg(a_msg){};
 };
+
+static bool is_string_literal(const string &s);
+static bool is_int_literal(const string &s);
 #endif
