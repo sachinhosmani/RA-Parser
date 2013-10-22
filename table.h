@@ -4,6 +4,7 @@
 #include <map>
 #include <vector>
 #include <boost/any.hpp>
+#include <boost/lexical_cast.hpp>
 #include <string>
 #include <iostream>
 #include "predicate.h"
@@ -28,6 +29,8 @@ public:
 	Table select(Predicate *p);
 	void print();
 	static bool satisfies(Predicate *p, const Tuple &t);
+	static bool satisfies(Simple_Predicate *p, const Tuple &t);
+	static boost::any parse_e_tree(Expression_Tree *e, const Tuple &t);
 };
 
 class TABLE_ERROR {
@@ -36,6 +39,7 @@ public:
 	inline TABLE_ERROR(const string &a_msg):msg(a_msg){};
 };
 
+static bool check_truth(boost::any a, boost::any b, int cond);
 static bool is_string_literal(const string &s);
 static bool is_int_literal(const string &s);
 #endif

@@ -127,7 +127,7 @@ void Table::print() {
 	}
 }
 
-static bool Table::satisfies(Predicate *p, const Tuple &t) {
+bool Table::satisfies(Predicate *p, const Tuple &t) {
 	if (!p)
 		throw TABLE_ERROR("Invalid predicate passed");
 	if (p->op > 0) {
@@ -143,7 +143,7 @@ static bool Table::satisfies(Predicate *p, const Tuple &t) {
 	}
 }
 
-static bool Table::satisfies(Simple_Predicate *p, const Tuple &t) {
+bool Table::satisfies(Simple_Predicate *p, const Tuple &t) {
 	if (!p)
 		throw TABLE_ERROR("Invalid predicate passed");
 	boost::any left = Table::parse_e_tree(p->left, t);
@@ -156,20 +156,21 @@ static bool Table::satisfies(Simple_Predicate *p, const Tuple &t) {
 	}
 }
 
-static boost::any Table::parse_e_tree(Expression_Tree *e, const Tuple &t) {
+boost::any Table::parse_e_tree(Expression_Tree *e, const Tuple &t) {
 	if (!e)
 		throw TABLE_ERROR("invalid expression resulted");
 	if (!e->left || !e->right) {
 		if (is_int_literal(e->data)) {
-			int tmp = boost::lexical_cast(e->data);
+			int tmp = boost::lexical_cast<int>(e->data);
 			return boost::any(tmp);
 		} else if (is_string_literal(e->data)) {
 			return e->data;
 		} else {
-			if (t.find(e->data) == t.end())
+			Tuple::const_iterator it = t.find(e->data);
+			if (it == t.end())
 				throw TABLE_ERROR("No such attribute \'" + e->data + "\' exists");
 			else {
-				return t[e->data];
+				return it->second;
 			}
 		}
 
@@ -177,48 +178,48 @@ static boost::any Table::parse_e_tree(Expression_Tree *e, const Tuple &t) {
 		boost::any left = Table::parse_e_tree(e->left, t);
 		boost::any right = Table::parse_e_tree(e->right, t);
 		if (left.type() != right.type())
-			throw TABLE_ERROR("Incompatible types for operation \'" + e->op + "\'");
+			throw TABLE_ERROR("Incompatible types for operation \'" + e->data + "\'");
 		if (left.type() == typeid(string)) {
-			if (e->op == "+") {
+			if (e->data == "+") {
 				return boost::any((boost::any_cast<string>(left) +
 					   boost::any_cast<string>(right)));
 			} else {
-				throw TABLE_ERROR("Only + supported on strings")
+				throw TABLE_ERROR("Only + supported on strings");
 			}
 		} else if (left.type() == typeid(int)){
-			if (e->op == "+")
+			if (e->data == "+")
 				return boost::any((boost::any_cast<int>(left) +
 					   boost::any_cast<int>(right)));
-			else if (e->op == "-")
+			else if (e->data == "-")
 				return boost::any((boost::any_cast<int>(left) -
 					   boost::any_cast<int>(right)));
-			else if (e->op == "*")
+			else if (e->data == "*")
 				return boost::any((boost::any_cast<int>(left) *
 					   boost::any_cast<int>(right)));
-			else if (e->op == "/")
+			else if (e->data == "/")
 				return boost::any((boost::any_cast<int>(left) /
 					   boost::any_cast<int>(right)));
 			else {
-				throw TABLE_ERROR("Unsupported operation \'" + e->op + "\'")
+				throw TABLE_ERROR("Unsupported operation \'" + e->data + "\'");
 			}
 		}
 	}
 }
 
-static bool check_truth(boost::any a, boost::any b, int cond) {
-	if (left.type() != right.type())
+bool check_truth(boost::any a, boost::any b, int cond) {
+	if (a.type() != b.type())
 		throw TABLE_ERROR("Incompatible types used in condition");
 	if (cond < 0)
 		throw TABLE_ERROR("Invalid condition passed");
 	string cond_sym = COND_OP_SYMBOLS[cond];
-	if (left.type() == typeid(string)) {
+	if (a.type() == typeid(string)) {
 		if (cond_sym == "==") {
 			return boost::any_cast<string>(a) == boost::any_cast<string>(b);
 		} else {
-			throw TABLE_ERROR("Unsupported condition type \'" + "\'");
+			throw TABLE_ERROR("Unsupported condition type \'" + cond_sym + "\' passed");
 		}
 	}
-	else if (left.type() == typeid(int)) {
+	else if (a.type() == typeid(int)) {
 		int left = atoi((boost::any_cast<string>(a)).c_str());
 		int right = atoi((boost::any_cast<string>(b)).c_str());
 		if (COND_OP_SYMBOLS[cond] == "<") {
@@ -232,7 +233,7 @@ static bool check_truth(boost::any a, boost::any b, int cond) {
 		} else if (COND_OP_SYMBOLS[cond] == ">=") {
 			return left >= right;
 		} else {
-			throw TABLE_ERROR("Unsupported condition type \'" + "\'");
+			throw TABLE_ERROR("Unsupported condition type \'" + cond_sym + "\' passed");
 		}
 	}
 }
