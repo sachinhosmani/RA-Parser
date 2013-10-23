@@ -3,4 +3,4 @@ CC=g++
 CFLAGS=-w
 EXE=a.out
 compile : main.cpp table.cpp predicate.cpp tokenizer.cpp parser.cpp
-	$(CC) $(FILES) $(FLAGS) $(CFLAGS) -o $(EXE)
+	$(CC) $(FILES) $(CFLAGS) -o $(EXE)

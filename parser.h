@@ -5,15 +5,18 @@
 #include "tokenizer.h"
 #include <string>
 #include "table.h"
+#include <boost/algorithm/string.hpp>
 
 using namespace std;
 
 extern map<string, Table> ENV;
 
-Table parse(const string &query);
+Table parse(string query);
 Table create_query(const string &query);
 Table insert_into(const string &query);
 Table cross_table(const string &query);
+
+string rest_of_query(Tokenizer &t);
 
 class SYNTAX_ERROR {
 public:

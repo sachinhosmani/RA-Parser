@@ -85,16 +85,49 @@ Table insert_into(const string &query) {
 
 Table cross_table(const string &query) {
 	Tokenizer t(query);
+	bool t1_complex = false, t2_complex = false;
 	string table1 = t.next_token();
-	t.next_token();
+	if (table1 == "(") {
+		table1 = "";
+		t1_complex = true;
+		string token;
+		while (true) {
+			token = t.next_token();
+			if (token == "X") {
+				break;
+			}
+			table1 += token + " ";
+		}
+	} else {
+		t.next_token();
+	}
 	string table2 = t.next_token();
-	if (ENV.find(table1) == ENV.end()) {
-		throw SYNTAX_ERROR("cross(X)", "Table \'" + table1 + "\'' doesn't exist");
+	if (table2 == "(") {
+		t2_complex = true;
+		table2 = rest_of_query(t);
 	}
-	if (ENV.find(table2) == ENV.end()) {
-		throw SYNTAX_ERROR("cross(X)", "Table \'" + table2 + "\'' doesn't exist");
+	if (t1_complex && t2_complex) {
+		return parse(table1.substr(0, table1.length() - 1)).cross(
+			   parse(table2.substr(0, table2.length() - 1)));
+	} else if (t1_complex) {
+		if (ENV.find(table2) == ENV.end()) {
+			throw SYNTAX_ERROR("cross(X)", "Table \'" + table2 + "\'' doesn't exist");
+		}
+		return parse(table1.substr(0, table1.length() - 1)).cross(ENV[table2]);
+	} else if (t2_complex) {
+		if (ENV.find(table1) == ENV.end()) {
+			throw SYNTAX_ERROR("cross(X)", "Table \'" + table1 + "\'' doesn't exist");
+		}
+		return parse(table2.substr(0, table2.length() - 1)).cross(ENV[table1]);
+	} else {
+		if (ENV.find(table1) == ENV.end()) {
+			throw SYNTAX_ERROR("cross(X)", "Table \'" + table1 + "\'' doesn't exist");
+		}
+		if (ENV.find(table2) == ENV.end()) {
+			throw SYNTAX_ERROR("cross(X)", "Table \'" + table2 + "\'' doesn't exist");
+		}
+		return ENV[table1].cross(ENV[table2]);
 	}
-	return ENV[table1].cross(ENV[table2]);
 }
 
 Table project_table(const string &query) {
@@ -118,6 +151,11 @@ Table project_table(const string &query) {
 		}
 	}
 	string table_name = t.next_token();
+	if (table_name == "(") {
+		string rest = rest_of_query(t);
+		Table t = parse(rest.substr(0, rest.length() - 1));
+		return t.project(attrs);
+	}
 	if (ENV.find(table_name) == ENV.end()) {
 		throw SYNTAX_ERROR("project", "Table \'" + table_name + "\'' doesn't exist");
 	}
@@ -142,19 +180,23 @@ Table select_table(const string &query) {
 		throw SYNTAX_ERROR("select", "Incorrect condition syntax");
 	try {
 		string table_name = t.next_token();
+		Predicate *p = create_predicate(select_condition);
+		if (table_name == "(") {
+			string rest = rest_of_query(t);
+			Table t = parse(rest.substr(0, rest.length() - 1));
+			return t.select(p);
+		}
 		if (ENV.find(table_name) == ENV.end()) {
 			throw SYNTAX_ERROR("select", "Table \'" + table_name + "\'' doesn't exist");
 		}
-		cout << select_condition << endl;
-		Predicate *p = create_predicate(select_condition);
-		cout << "done\n";
 		return ENV[table_name].select(p);
 	} catch (TABLE_ERROR te) {
 		throw SYNTAX_ERROR("select", te.msg);
 	}
 }
 
-Table parse(const string &query) {
+Table parse(string query) {
+	boost::trim(query);
 	for (int i = 0; i < START_INSTRUCTIONS_COUNT; i++) {
 		if (query.find(start_instructions[i]) == 0) {
 			switch (i) {
@@ -170,7 +212,22 @@ Table parse(const string &query) {
 		}
 	}
 	Tokenizer t(query);
-	t.next_token();
+	string token = t.next_token();
+	int b_ctr = 0;
+	if (token == "(") {
+		//SYNTAX_ERROR("-", "All nested queries must in brackets");
+		b_ctr++;
+	}
+	while (b_ctr != 0) {
+		token = t.next_token();
+		if (token == ")")
+			b_ctr--;
+		if (token == "(")
+			b_ctr++;
+		if (t.eof()) {
+			throw SYNTAX_ERROR("-", "No meaningful statement was found in the query");
+		}
+	}
 	string op = t.next_token();
 	for (int i = 0; i < MIDDLE_INSTRUCTIONS_COUNT; i++) {
 		if (op == middle_instructions[i]) {
@@ -180,4 +237,19 @@ Table parse(const string &query) {
 			}
 		}
 	}
+	throw SYNTAX_ERROR("-", "No meaningful statement was found in the query");
+}
+
+string rest_of_query(Tokenizer &t) {
+	string rest = "";
+	string token;
+	while (!t.eof()) {
+		token = t.next_token();
+		if (t.eof()) {
+			rest += token;
+			return rest;
+		}
+		rest += token + " ";
+	}
+	return rest;
 }

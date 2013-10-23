@@ -102,7 +102,7 @@ Simple_Predicate *create_simple_predicate(const string &sp_query) {
 }
 
 Expression_Tree *create_expression_tree(const string &e_query) {
-	cout << "exp: " << e_query << endl;
+	//cout << "exp: " << e_query << endl;
 	Expression_Tree *e = new Expression_Tree;
 	Expression_Tree *first;
 	string token, op;
@@ -133,14 +133,14 @@ Expression_Tree *create_expression_tree(const string &e_query) {
 		}
 	}
 	if (op == "") {
-		cout << "no op " << until << endl;
+		//cout << "no op " << until << endl;
 		e->left = NULL;
 		e->right = NULL;
 		e->data = until;
 		boost::trim(e->data);
 	}
 	else {
-		cout << "op " << op << endl;
+		//cout << "op " << op << endl;
 		e->left = first;
 		e->right = create_expression_tree(until);
 		e->data = op;
