@@ -2,7 +2,7 @@
 
 namespace {
 	const int START_INSTRUCTIONS_COUNT = 4;
-	string start_instructions[] = {"create table", "insert into", "project", "select"};
+	string start_instructions[] = {"create table", "insert into", "project", "select", "rename"};
 	const int MIDDLE_INSTRUCTIONS_COUNT = 1;
 	string middle_instructions[] = {"X"};
 }
@@ -195,8 +195,45 @@ Table select_table(const string &query) {
 	}
 }
 
+Table rename_table(string query) {
+	Tokenizer t(query);
+	vector<string> attrs;
+	t.next_token();
+	string new_name = t.next_token(), token;
+	if (new_name == "(") {
+		new_name = "";
+	}
+	if (t.next_token() == "(" || new_name == "") {
+		while (true) {
+			token = t.next_token();
+			if (token == ")") {
+				break;
+			}
+			attrs.push_back(token);
+		}
+	}
+	string table_name = t.next_token();
+	if (table_name == "(") {
+		string rest = rest_of_query(t);
+		Table t = parse(rest.substr(0, rest.length() - 1));
+		t.rename(new_name, attrs);
+		return t;
+	} else {
+		if (ENV.find(table_name) == ENV.end()) {
+			throw(SYNTAX_ERROR("rename", "No such table \'" + table_name + "\' exists"));
+		}
+		ENV[table_name].rename(new_name, attrs);
+		Table t = ENV[table_name];
+		ENV.erase(table_name);
+		ENV.insert(pair<string, Table>(new_name, t));
+	}
+}
+
 Table parse(string query) {
 	boost::trim(query);
+	if (query.length() > 0 && query[0] == '(' && query[query.length() - 1] == ')') {
+		return parse(query.substr(1, query.length() - 2));
+	}
 	for (int i = 0; i < START_INSTRUCTIONS_COUNT; i++) {
 		if (query.find(start_instructions[i]) == 0) {
 			switch (i) {
@@ -208,6 +245,8 @@ Table parse(string query) {
 					return project_table(query);
 				case 3:
 					return select_table(query);
+				case 4:
+					return rename_table(query);
 			}
 		}
 	}
@@ -215,7 +254,6 @@ Table parse(string query) {
 	string token = t.next_token();
 	int b_ctr = 0;
 	if (token == "(") {
-		//SYNTAX_ERROR("-", "All nested queries must in brackets");
 		b_ctr++;
 	}
 	while (b_ctr != 0) {

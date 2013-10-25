@@ -3,13 +3,17 @@
 #include "parser.h"
 #include "table.h"
 #include "predicate.h"
+#include <boost/filesystem.hpp>
 
 using namespace std;
+using namespace boost::filesystem;
 
 map<string, Table> ENV;
 
+void init();
+
 int main() {
-	vector<string> attr_names;
+	/*vector<string> attr_names;
 	attr_names.push_back("Name");
 	attr_names.push_back("ID");
 	attr_names.push_back("Phone");
@@ -66,9 +70,9 @@ int main() {
 	t2.insert(pair<string, boost::any>("Name", string("E")));
 	t2.insert(pair<string, boost::any>("ID", 1));
 	t2.insert(pair<string, boost::any>("Phone", 56767867));
-	ENV["table2"].insert_tuple(t2);
+	ENV["table2"].insert_tuple(t2);*/
 
-	Predicate *p = create_predicate("(((hi + hello) - (5 * cool)) < 5)");
+	init();
 	string s;
 	string query = "";
 	do {
@@ -96,4 +100,29 @@ int main() {
 
 	} while(true);
 	return 0;
+}
+
+void init() {
+	path p("./db/");
+	directory_iterator end;
+	for (directory_iterator it(p);
+		 it != end;
+		 ++it) {
+		if (is_directory(*it)) {
+			directory_iterator it2(it->path());
+			string file = (it2->path()).string();
+			string main_file;
+			string md_file;
+			if (file.find("_metadata") > 0)
+				md_file = file;
+			it2++;
+			file = (it2->path()).string();
+			if (md_file == "")
+				md_file = file;
+			else
+				main_file = file;
+			Table t(main_file, md_file);
+			ENV.insert(pair<string, Table>(t.name, t));
+		}
+	}
 }

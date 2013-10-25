@@ -1,0 +1,4 @@
+table1
+Name varchar
+ID int
+Phone int

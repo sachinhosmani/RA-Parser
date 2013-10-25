@@ -1,5 +1,7 @@
 #include "table.h"
 
+static const int BATCH_SIZE = 50;
+
 static void generic_print(string type, boost::any value) {
 	if (type == "varchar")
 		cout << boost::any_cast<string>(value);
@@ -20,30 +22,108 @@ Table::Table(const string &a_name, const vector<string> &a_attr_names, const vec
 		attr_type_map.insert(pair<string, string>(*it, *it2));
 	}
 	name = a_name;
+	eof = false;
+	tuples_read = 0;
+	file = (name.find("tmp_") == 0) ? "db/tmp/" + name : "db/" + name;
+	f_read = new ifstream;
+	f_write = new ofstream;
+	f_read->open(file.c_str(), fstream::in);
+	f_write->open(file.c_str(), fstream::out | fstream::app);
+}
+
+Table::Table(const string &a_file, const string &a_md_file) {
+	f_read = new ifstream;
+	f_write = new ofstream;
+	md_read = new ifstream;
+	md_write = new ofstream;
+	f_read->open(a_file.c_str(), fstream::in);
+	f_write->open(a_file.c_str(), fstream::out | fstream::app);
+	md_read->open(a_md_file.c_str(), fstream::in);
+	md_write->open(a_md_file.c_str(), fstream::out | fstream::app);
+	file = a_file;
+	md_file = a_md_file;
+	eof = false;
+	tuples_read = 0;
+	string attr_name, attr_type;
+	while (!md_read->eof()) {
+		if (name == "")
+			*md_read >> name;
+		*md_read >> attr_name;
+		if (attr_name == "")
+			break;
+		attr_names.push_back(attr_name);
+		*md_read >> attr_type;
+		if (attr_type == "")
+			throw TABLE_ERROR("Corrupt meta data file: \'" + a_md_file + "\'");
+		attr_names.push_back(attr_name);
+		attr_types.push_back(attr_type);
+	}
+	vector<string>::iterator it = attr_names.begin();
+	vector<string>::iterator it2 = attr_types.begin();
+	for(; it != attr_names.end() && it2 != attr_types.end(); it++, it2++) {
+		attr_type_map.insert(pair<string, string>(*it, *it2));
+	}
+}
+
+void Table::reset() {
+	eof = false;
+	tuples_read = 0;
+	tuples.clear();
+	f_read->close();
+	f_read->open(file.c_str(), fstream::in);
+	md_read->close();
+	md_read->open(md_file.c_str(), fstream::in);
+}
+
+Tuple Table::next_tuple() {
+	if (!buffer_empty()) {
+		return tuples[tuples_read++];
+	}
+	tuples.clear();
+	tuples_read = 0;
+	string line;
+	while (tuples_read < BATCH_SIZE) {
+		if (f_read->eof()) {
+			eof = true;
+		}
+		*f_read >> line;
+		if (line == "") {
+			eof = true;
+			break;
+		}
+		tuples.push_back(line_to_tuple(line));
+		tuples_read++;
+	}
+	if (tuples.size() == 0)
+		throw TABLE_ERROR("Table exhausted. The object must be reset.");
+	return tuples[tuples_read++];
 }
 
 void Table::insert_tuple(const Tuple &t) {
-	tuples.push_back(t);
+	vector<string>::iterator it = attr_names.begin();
+	for (; it != attr_names.end(); it++) {
+		Tuple::const_iterator it2 = t.find(*it);
+		if (attr_type_map[*it] == "varchar") {
+			*f_write << boost::any_cast<string>(*it2);
+		} else {
+			*f_write << boost::any_cast<int>(*it2);
+		}
+	}
+	*f_write << "\n";
 }
 
 void Table::insert_tuple(const vector<string> &values) {
 	Tuple t;
 	if (values.size() != attr_names.size())
 		throw TABLE_ERROR("Incorrect number of values passed to table");
-	vector<string>::const_iterator it = values.begin();
-	vector<string>::const_iterator it2 = attr_names.begin();
-	for (; it != values.end(); it++, it2++) {
-		string type = attr_type_map[*it2];
-		boost::any val = *it;
-		if (type == "int") {
-			val = atoi(it->c_str());
-		}
-		t.insert(pair<string, boost::any>(*it2, val));
+	vector<string>::const_iterator it;
+	for (it = values.begin(); it != values.end(); it++) {
+		*f_write << *it << ";;";
 	}
-	tuples.push_back(t);
+	*f_write << "\n";
 }
 
-Table Table::cross(const Table &t) const {
+Table Table::cross(Table t) {
 	vector<string> c_attr_names, c_attr_types;
 	vector<string>::const_iterator it = attr_names.begin();
 	for (; it != attr_names.end(); it++) {
@@ -57,18 +137,17 @@ Table Table::cross(const Table &t) const {
 		string tmp = (t.attr_type_map.find(*it2))->second;
 		c_attr_types.push_back(tmp);
 	}
-	Table crossed(name + " x " + t.name, c_attr_names, c_attr_types);
-	vector<Tuple>::const_iterator it3 = tuples.begin();
-	vector<Tuple>::const_iterator it4;
+	Table crossed("tmp_" + name + " x " + t.name, c_attr_names, c_attr_types);
+	Tuple it3, it4;
 	Tuple::const_iterator it5;
 	Tuple::const_iterator it6;
 	Tuple tmp;
-	for (; it3 != tuples.end(); it3++) {
-		for (it4 = t.tuples.begin(); it4 != t.tuples.end(); it4++) {
-			for (it5 = it3->begin(); it5 != it3->end(); it5++) {
+	for (reset(); !end_of_table(); it3 = next_tuple()) {
+		for (t.reset(); !t.end_of_table(); it4 = t.next_tuple()) {
+			for (it5 = it3.begin(); it5 != it3.end(); it5++) {
 				tmp.insert(pair<string, boost::any>(it5->first + "1", it5->second));
 			}
-			for (it6 = it4->begin(); it6 != it4->end(); it6++) {
+			for (it6 = it4.begin(); it6 != it4.end(); it6++) {
 				tmp.insert(pair<string, boost::any>(it6->first + "2", it6->second));
 			}
 			crossed.insert_tuple(tmp);
@@ -86,7 +165,7 @@ Table Table::project(const vector<string> &a_attr_names) {
 		p_attr_names.push_back(*it);
 		p_attr_types.push_back(attr_type_map[*it]);
 	}
-	Table projected("p" + name, p_attr_names, p_attr_types);
+	Table projected("tmp_p" + name, p_attr_names, p_attr_types);
 	vector<Tuple>::iterator it2 = tuples.begin();
 	Tuple tmp;
 	for (; it2 != tuples.end(); it2++) {
@@ -101,13 +180,40 @@ Table Table::project(const vector<string> &a_attr_names) {
 }
 
 Table Table::select(Predicate *p) {
-	Table selected("s" + name, attr_names, attr_types);
-	vector<Tuple>::iterator it = tuples.begin();
-	for (; it != tuples.end(); it++) {
-		if (Table::satisfies(p, *it))
-			selected.insert_tuple(*it);
+	Table selected("tmp_s" + name, attr_names, attr_types);
+	Tuple it;
+	for (reset(); !end_of_table(); it = next_tuple()) {
+		if (Table::satisfies(p, it))
+			selected.insert_tuple(it);
 	}
 	return selected;
+}
+
+void Table::rename(const string &a_name, const vector<string> &attrs) {
+	if (attrs.size() != attr_names.size())
+		throw TABLE_ERROR("Insufficient new attribute names passed");
+	if (a_name != "")
+		name = a_name;
+	if (attrs.size() == 0)
+		return;
+	map<string, string> new_attr_type_map;
+	vector<string>::iterator it = attr_names.begin();
+	vector<string>::const_iterator it2 = attrs.begin();
+	for (; it != attr_names.end(); it++, it2++) {
+		new_attr_type_map[*it2] = attr_type_map[*it];
+	}
+	attr_names = attrs;
+	attr_type_map = new_attr_type_map;
+	md_read->close();
+	md_write->close();
+	remove(md_file.c_str());
+	md_write->open(md_file.c_str(), fstream::out | fstream::app);
+	*md_write << name << endl;
+	it = attr_names.begin();
+	for (; it != attr_names.end(); it++) {
+		*md_write << *it << " " << attr_type_map[*it] << endl;
+	}
+	reset();
 }
 
 void Table::print() {
@@ -206,6 +312,36 @@ boost::any Table::parse_e_tree(Expression_Tree *e, const Tuple &t) {
 			}
 		}
 	}
+}
+
+bool Table::buffer_empty() {
+	return tuples.size() == 0 || tuples_read >= BATCH_SIZE;
+}
+
+bool Table::end_of_table() {
+	return eof && buffer_empty();
+}
+
+Tuple Table::line_to_tuple(const string &line) {
+	istringstream ss(line);
+	string token;
+	vector<string> values;
+	while (getline(ss, token, ';')) {
+		ss >> token;
+		values.push_back(token);
+	}
+	vector<string>::iterator it = values.begin();
+	vector<string>::iterator it2 = attr_names.begin();
+	Tuple t;
+	for (; it != values.end(); it++, it2++) {
+		string type = attr_type_map[*it2];
+		boost::any val = *it;
+		if (type == "int") {
+			val = atoi(it->c_str());
+		}
+		t.insert(pair<string, boost::any>(*it2, val));
+	}
+	return t;
 }
 
 bool check_truth(boost::any a, boost::any b, int cond) {
