@@ -23,8 +23,8 @@ class Table {
 	ofstream *f_write;
 	ofstream *md_write;
 	bool eof;
-	string file;
-	string md_file;
+	path file;
+	path md_file;
 	Tuple line_to_tuple(const string &line);
 public:
 	vector<string> attr_names;
@@ -48,6 +48,9 @@ public:
 	static boost::any parse_e_tree(Expression_Tree *e, const Tuple &t);
 	bool buffer_empty();
 	bool end_of_table();
+
+	string get_file_path();
+	string get_md_file_path();
 };
 
 class TABLE_ERROR {

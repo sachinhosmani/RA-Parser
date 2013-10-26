@@ -54,16 +54,16 @@ void init() {
 	for (directory_iterator it(p); it != end; ++it) {
 		if (is_directory(*it) && it->path().filename() != "tmp") {
 			directory_iterator it2(it->path());
-			string file = (it2->path()).string();
-			string main_file;
-			string md_file;
-			if (file.find("_metadata") != string::npos)
+			path file = (it2->path());
+			path main_file;
+			path md_file;
+			if (file.string().find("_metadata") != string::npos)
 				md_file = file;
 			else
 				main_file = file;
 			it2++;
 			file = (it2->path()).string();
-			if (md_file == "")
+			if (file.string().find("_metadata") != string::npos)
 				md_file = file;
 			else
 				main_file = file;

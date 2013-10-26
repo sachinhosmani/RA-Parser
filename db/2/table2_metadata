@@ -1,4 +1,4 @@
-table3
-a;varchar
-b;varchar
-c;int
+t2
+x;varchar
+y;varchar
+z;int

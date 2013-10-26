@@ -373,6 +373,23 @@ bool Table::end_of_table() {
 	return eof && buffer_empty();
 }
 
+string Table::get_file_name() {
+	return file.string();
+}
+
+string Table::get_md_file_name() {
+	return md_file.string();
+}
+
+void Table::make_permanent() {
+	string random_dir = random_str_gen(8);
+	path dest_dir("./db/" + random_dir);
+	create_directory(dest);
+	path dest = dest_dir/get_file_name();
+	path src(get_file_name());
+	copy_file(src, dest);
+}
+
 Tuple Table::line_to_tuple(const string &line) {
 	istringstream ss(line);
 	string token;

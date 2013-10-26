@@ -199,8 +199,8 @@ Table rename_table(string query) {
 	Tokenizer t(query);
 	vector<string> attrs;
 	t.next_token();
-	string new_name, token, table_name, first_token;
-	first_token = token = t.next_token();
+	string new_name, token, table_name;
+	token = t.next_token();
 	bool attrs_exist = false;
 	if (token != "(") {
 		new_name = token;
@@ -217,15 +217,15 @@ Table rename_table(string query) {
 				if (token == ")")
 					break;
 				attrs.push_back(token);
+				cout << token << " was read\n";
 				token = t.next_token();
 				if (token == ")")
 					break;
 				if (token != ",")
 					throw SYNTAX_ERROR("rename", "attributes must be separated by commas");
 			}
-		}
-		if (first_token == "(")
 			table_name = t.next_token();
+		}
 		else
 			table_name = token;
 	} catch (EOF_ERROR e) {
@@ -235,6 +235,10 @@ Table rename_table(string query) {
 		string rest = rest_of_query(t);
 		Table t = parse(rest.substr(0, rest.length() - 1));
 		t.rename(new_name, attrs);
+		if (new_name != "") {
+			t.make_permanent();
+			ENV.insert(pair<string, Table>(new_name, t));
+		}
 		return t;
 	} else {
 		if (ENV.find(table_name) == ENV.end()) {
@@ -249,10 +253,11 @@ Table rename_table(string query) {
 }
 
 Table parse(string query) {
+	cout << query << " is query\n";
 	boost::trim(query);
-	if (query.length() > 0 && query[0] == '(' && query[query.length() - 1] == ')') {
+	/*if (query.length() > 0 && query[0] == '(' && query[query.length() - 1] == ')') {
 		return parse(query.substr(1, query.length() - 2));
-	}
+	}*/
 	for (int i = 0; i < START_INSTRUCTIONS_COUNT; i++) {
 		if (query.find(start_instructions[i]) == 0) {
 			switch (i) {
