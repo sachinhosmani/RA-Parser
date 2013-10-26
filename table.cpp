@@ -30,16 +30,16 @@ Table::Table(const string &a_name, const vector<string> &a_attr_names, const vec
 	eof = false;
 	tuples_read = 0;
 	tuples.clear();
-	file = "db/tmp/" + random_str_gen(8);
-	md_file = file + "_metadata";
+	file = path("db/tmp/" + random_str_gen(8));
+	md_file = path(file.string() + "_metadata");
 	f_read = new ifstream;
 	f_write = new ofstream;
 	md_read = new ifstream;
 	md_write = new ofstream;
-	f_read->open(file.c_str(), fstream::in);
-	f_write->open(file.c_str(), fstream::out | fstream::app);
-	md_read->open(md_file.c_str(), fstream::in);
-	md_write->open(md_file.c_str(), fstream::out | fstream::app);
+	f_read->open(get_file_path().c_str(), fstream::in);
+	f_write->open(get_file_path().c_str(), fstream::out | fstream::app);
+	md_read->open(get_md_file_path().c_str(), fstream::in);
+	md_write->open(get_md_file_path().c_str(), fstream::out | fstream::app);
 	*md_write << name << "\n";
 	it = attr_names.begin();
 	for (; it != attr_names.end(); it++) {
@@ -48,17 +48,17 @@ Table::Table(const string &a_name, const vector<string> &a_attr_names, const vec
 	md_write->close();
 }
 
-Table::Table(const string &a_file, const string &a_md_file) {
+Table::Table(const path &a_file, const path &a_md_file) {
 	f_read = new ifstream;
 	f_write = new ofstream;
 	md_read = new ifstream;
 	md_write = new ofstream;
-	f_read->open(a_file.c_str(), fstream::in);
-	f_write->open(a_file.c_str(), fstream::out | fstream::app);
-	md_read->open(a_md_file.c_str(), fstream::in);
-	md_write->open(a_md_file.c_str(), fstream::out | fstream::app);
 	file = a_file;
 	md_file = a_md_file;
+	f_read->open(get_file_path().c_str(), fstream::in);
+	f_write->open(get_file_path().c_str(), fstream::out | fstream::app);
+	md_read->open(get_md_file_path().c_str(), fstream::in);
+	md_write->open(get_md_file_path().c_str(), fstream::out | fstream::app);
 	eof = false;
 	tuples_read = 0;
 	string attr_name, attr_type;
@@ -76,7 +76,7 @@ Table::Table(const string &a_file, const string &a_md_file) {
 		getline(ss, attr_name, ';');
 		getline(ss, attr_type, ';');
 		if (attr_name == "" || attr_type == "")
-			throw TABLE_ERROR("Corrupt meta data file: \'" + a_md_file + "\'");
+			throw TABLE_ERROR("Corrupt meta data file: \'" + get_md_file_path() + "\'");
 		attr_names.push_back(attr_name);
 		attr_types.push_back(attr_type);
 	}
@@ -92,10 +92,10 @@ void Table::reset() {
 	tuples_read = 0;
 	tuples.clear();
 	f_read->close();
-	f_read->open(file.c_str(), fstream::in);
+	f_read->open(get_file_path().c_str(), fstream::in);
 	if (md_read) {
 		md_read->close();
-		md_read->open(md_file.c_str(), fstream::in);
+		md_read->open(get_md_file_path().c_str(), fstream::in);
 	}
 }
 
@@ -132,7 +132,7 @@ Tuple Table::next_tuple() {
 
 void Table::insert_tuple(const Tuple &t) {
 	f_write->close();
-	f_write->open(file.c_str(), fstream::out | fstream::app);
+	f_write->open(get_file_path().c_str(), fstream::out | fstream::app);
 	vector<string>::iterator it = attr_names.begin();
 	cout << "here\n";
 	while (it != attr_names.end()) {
@@ -257,7 +257,7 @@ void Table::rename(const string &a_name, const vector<string> &attrs) {
 	md_read->close();
 	md_write->close();
 	remove(md_file.c_str());
-	md_write->open(md_file.c_str(), fstream::out | fstream::app);
+	md_write->open(get_md_file_path().c_str(), fstream::out | fstream::app);
 	*md_write << name << endl;
 	vector<string>::iterator it = attr_names.begin();
 	for (; it != attr_names.end(); it++) {
@@ -373,21 +373,24 @@ bool Table::end_of_table() {
 	return eof && buffer_empty();
 }
 
-string Table::get_file_name() {
+string Table::get_file_path() {
 	return file.string();
 }
 
-string Table::get_md_file_name() {
+string Table::get_md_file_path() {
 	return md_file.string();
 }
 
 void Table::make_permanent() {
 	string random_dir = random_str_gen(8);
 	path dest_dir("./db/" + random_dir);
-	create_directory(dest);
-	path dest = dest_dir/get_file_name();
-	path src(get_file_name());
-	copy_file(src, dest);
+	create_directory(dest_dir);
+	path dest = dest_dir/file.filename();
+	copy_file(file, dest);
+	file = dest;
+	dest = dest_dir/md_file.filename();
+	copy_file(md_file, dest);
+	md_file = dest;
 }
 
 Tuple Table::line_to_tuple(const string &line) {

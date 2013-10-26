@@ -1,0 +1,7 @@
+crossed
+t1.q;varchar
+t1.w;varchar
+t1.e;int
+t2.x;varchar
+t2.y;varchar
+t2.z;int

@@ -10,8 +10,10 @@
 #include "predicate.h"
 #include <fstream>
 #include <cstdio>
+#include <boost/filesystem.hpp>
 
 using namespace std;
+using namespace boost::filesystem;
 
 typedef map<string, boost::any> Tuple;
 
@@ -33,7 +35,7 @@ public:
 	string name;
 	Table();
 	Table(const string &a_name, const vector<string> &a_attr_names, const vector<string> &a_attr_types);
-	Table(const string &a_file, const string &a_md_file);
+	Table(const path &a_file, const path &a_md_file);
 	Tuple next_tuple();
 	void insert_tuple(const Tuple &t);
 	void insert_tuple(const vector<string> &values);
@@ -48,7 +50,7 @@ public:
 	static boost::any parse_e_tree(Expression_Tree *e, const Tuple &t);
 	bool buffer_empty();
 	bool end_of_table();
-
+	void make_permanent();
 	string get_file_path();
 	string get_md_file_path();
 };
