@@ -105,16 +105,16 @@ int main() {
 void init() {
 	path p("./db/");
 	directory_iterator end;
-	for (directory_iterator it(p);
-		 it != end;
-		 ++it) {
-		if (is_directory(*it)) {
+	for (directory_iterator it(p); it != end; ++it) {
+		if (is_directory(*it) && it->path().filename() != "tmp") {
 			directory_iterator it2(it->path());
 			string file = (it2->path()).string();
 			string main_file;
 			string md_file;
-			if (file.find("_metadata") > 0)
+			if (file.find("_metadata") != string::npos)
 				md_file = file;
+			else
+				main_file = file;
 			it2++;
 			file = (it2->path()).string();
 			if (md_file == "")

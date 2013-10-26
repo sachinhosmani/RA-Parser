@@ -111,20 +111,20 @@ Table cross_table(const string &query) {
 			   parse(table2.substr(0, table2.length() - 1)));
 	} else if (t1_complex) {
 		if (ENV.find(table2) == ENV.end()) {
-			throw SYNTAX_ERROR("cross(X)", "Table \'" + table2 + "\'' doesn't exist");
+			throw SYNTAX_ERROR("cross(X)", "Table \'" + table2 + "\' doesn't exist");
 		}
 		return parse(table1.substr(0, table1.length() - 1)).cross(ENV[table2]);
 	} else if (t2_complex) {
 		if (ENV.find(table1) == ENV.end()) {
-			throw SYNTAX_ERROR("cross(X)", "Table \'" + table1 + "\'' doesn't exist");
+			throw SYNTAX_ERROR("cross(X)", "Table \'" + table1 + "\' doesn't exist");
 		}
 		return parse(table2.substr(0, table2.length() - 1)).cross(ENV[table1]);
 	} else {
 		if (ENV.find(table1) == ENV.end()) {
-			throw SYNTAX_ERROR("cross(X)", "Table \'" + table1 + "\'' doesn't exist");
+			throw SYNTAX_ERROR("cross(X)", "Table \'" + table1 + "\' doesn't exist");
 		}
 		if (ENV.find(table2) == ENV.end()) {
-			throw SYNTAX_ERROR("cross(X)", "Table \'" + table2 + "\'' doesn't exist");
+			throw SYNTAX_ERROR("cross(X)", "Table \'" + table2 + "\' doesn't exist");
 		}
 		return ENV[table1].cross(ENV[table2]);
 	}

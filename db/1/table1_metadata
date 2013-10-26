@@ -1,4 +1,5 @@
 table1
 Name varchar
-ID int
+ID varchar
 Phone int
+

@@ -24,14 +24,21 @@ Table::Table(const string &a_name, const vector<string> &a_attr_names, const vec
 	name = a_name;
 	eof = false;
 	tuples_read = 0;
-	file = (name.find("tmp_") == 0) ? "db/tmp/" + name : "db/" + name;
+	tuples.clear();
+	file = "db/tmp/" + name;
+	md_file = file + "_metadata";
 	f_read = new ifstream;
 	f_write = new ofstream;
+	md_read = new ifstream;
+	md_write = new ofstream;
 	f_read->open(file.c_str(), fstream::in);
 	f_write->open(file.c_str(), fstream::out | fstream::app);
+	md_read->open(md_file.c_str(), fstream::in);
+	md_write->open(md_file.c_str(), fstream::out | fstream::app);
 }
 
 Table::Table(const string &a_file, const string &a_md_file) {
+	cout << a_file << " " << a_md_file << endl;
 	f_read = new ifstream;
 	f_write = new ofstream;
 	md_read = new ifstream;
@@ -45,13 +52,15 @@ Table::Table(const string &a_file, const string &a_md_file) {
 	eof = false;
 	tuples_read = 0;
 	string attr_name, attr_type;
-	while (!md_read->eof()) {
-		if (name == "")
+	tuples.clear();
+	while (true) {
+		if (name == "") {
 			*md_read >> name;
+			continue;
+		}
 		*md_read >> attr_name;
-		if (attr_name == "")
+		if (attr_name == "" || md_read->eof())
 			break;
-		attr_names.push_back(attr_name);
 		*md_read >> attr_type;
 		if (attr_type == "")
 			throw TABLE_ERROR("Corrupt meta data file: \'" + a_md_file + "\'");
@@ -71,54 +80,73 @@ void Table::reset() {
 	tuples.clear();
 	f_read->close();
 	f_read->open(file.c_str(), fstream::in);
-	md_read->close();
-	md_read->open(md_file.c_str(), fstream::in);
+	if (md_read) {
+		md_read->close();
+		md_read->open(md_file.c_str(), fstream::in);
+	}
 }
 
 Tuple Table::next_tuple() {
+	cout <<"next\n";
+	cout << buffer_empty() << endl;
 	if (!buffer_empty()) {
+		cout << tuples.size() << " " << tuples_read  << endl;
 		return tuples[tuples_read++];
 	}
 	tuples.clear();
 	tuples_read = 0;
 	string line;
-	while (tuples_read < BATCH_SIZE) {
+	int i = 0;
+	while (i < BATCH_SIZE) {
 		if (f_read->eof()) {
 			eof = true;
+			break;
 		}
-		*f_read >> line;
+		getline(*f_read, line);
 		if (line == "") {
 			eof = true;
 			break;
 		}
+		cout << line << endl;
 		tuples.push_back(line_to_tuple(line));
-		tuples_read++;
+		i++;
 	}
-	if (tuples.size() == 0)
-		throw TABLE_ERROR("Table exhausted. The object must be reset.");
+	if (tuples.size() == 0) {
+		throw TABLE_ERROR("Table exhausted. Table is empty or the object must be reset.");
+	}
 	return tuples[tuples_read++];
 }
 
 void Table::insert_tuple(const Tuple &t) {
+	f_write->close();
+	f_write->open(file.c_str(), fstream::out | fstream::app);
 	vector<string>::iterator it = attr_names.begin();
-	for (; it != attr_names.end(); it++) {
+	while (it != attr_names.end()) {
 		Tuple::const_iterator it2 = t.find(*it);
 		if (attr_type_map[*it] == "varchar") {
-			*f_write << boost::any_cast<string>(*it2);
+			//cout << boost::any_cast<string>(it2->second) << " " << name << endl;
+			*f_write << boost::any_cast<string>(it2->second);
 		} else {
-			*f_write << boost::any_cast<int>(*it2);
+			//cout << boost::any_cast<int>(it2->second) << " " << name << endl;
+			*f_write << boost::any_cast<int>(it2->second);
 		}
+		it++;
+		if (it != attr_names.end())
+			*f_write << ";";
 	}
 	*f_write << "\n";
+	f_write->close();
 }
 
 void Table::insert_tuple(const vector<string> &values) {
 	Tuple t;
 	if (values.size() != attr_names.size())
 		throw TABLE_ERROR("Incorrect number of values passed to table");
-	vector<string>::const_iterator it;
-	for (it = values.begin(); it != values.end(); it++) {
-		*f_write << *it << ";;";
+	vector<string>::const_iterator it = values.begin();
+	while (it != values.end()) {
+		*f_write << *it;
+		if (it != values.end())
+			*f_write << ";";
 	}
 	*f_write << "\n";
 }
@@ -142,8 +170,12 @@ Table Table::cross(Table t) {
 	Tuple::const_iterator it5;
 	Tuple::const_iterator it6;
 	Tuple tmp;
-	for (reset(); !end_of_table(); it3 = next_tuple()) {
-		for (t.reset(); !t.end_of_table(); it4 = t.next_tuple()) {
+	reset();
+	while (!end_of_table()) {
+		it3 = next_tuple();
+		t.reset();
+		while (!t.end_of_table()) {
+			it4 = t.next_tuple();
 			for (it5 = it3.begin(); it5 != it3.end(); it5++) {
 				tmp.insert(pair<string, boost::any>(it5->first + "1", it5->second));
 			}
@@ -182,9 +214,12 @@ Table Table::project(const vector<string> &a_attr_names) {
 Table Table::select(Predicate *p) {
 	Table selected("tmp_s" + name, attr_names, attr_types);
 	Tuple it;
-	for (reset(); !end_of_table(); it = next_tuple()) {
-		if (Table::satisfies(p, it))
+	reset();
+	while (!end_of_table()) {
+		it = next_tuple();
+		if (Table::satisfies(p, it)) {
 			selected.insert_tuple(it);
+		}
 	}
 	return selected;
 }
@@ -217,16 +252,18 @@ void Table::rename(const string &a_name, const vector<string> &attrs) {
 }
 
 void Table::print() {
+	Tuple t;
 	vector<string>::iterator it0 = attr_names.begin();
 	for (; it0 != attr_names.end(); it0++) {
 		cout << *it0 << "   ";
 	}
 	cout << endl;
-	vector<Tuple>::iterator it1 = tuples.begin();
-	for (; it1 != tuples.end(); it1++) {
+	reset();
+	while (!end_of_table()) {
+		t = next_tuple();
 		it0 = attr_names.begin();
 		for (; it0 != attr_names.end(); it0++) {
-			generic_print(attr_type_map[*it0], (*it1)[*it0]);
+			generic_print(attr_type_map[*it0], t[*it0]);
 			cout << "   ";
 		}
 		cout << "\n";
@@ -252,7 +289,6 @@ bool Table::satisfies(Predicate *p, const Tuple &t) {
 bool Table::satisfies(Simple_Predicate *p, const Tuple &t) {
 	if (!p)
 		throw TABLE_ERROR("Invalid predicate passed");
-	cout << "here\n";
 	boost::any left = Table::parse_e_tree(p->left, t);
 	boost::any right = Table::parse_e_tree(p->right, t);
 	try {
@@ -281,7 +317,6 @@ boost::any Table::parse_e_tree(Expression_Tree *e, const Tuple &t) {
 				return it->second;
 			}
 		}
-
 	} else {
 		boost::any left = Table::parse_e_tree(e->left, t);
 		boost::any right = Table::parse_e_tree(e->right, t);
@@ -315,7 +350,7 @@ boost::any Table::parse_e_tree(Expression_Tree *e, const Tuple &t) {
 }
 
 bool Table::buffer_empty() {
-	return tuples.size() == 0 || tuples_read >= BATCH_SIZE;
+	return tuples.size() == 0 || tuples_read >= tuples.size();
 }
 
 bool Table::end_of_table() {
@@ -327,7 +362,7 @@ Tuple Table::line_to_tuple(const string &line) {
 	string token;
 	vector<string> values;
 	while (getline(ss, token, ';')) {
-		ss >> token;
+		//cout << "read " << token << endl;
 		values.push_back(token);
 	}
 	vector<string>::iterator it = values.begin();
@@ -345,7 +380,7 @@ Tuple Table::line_to_tuple(const string &line) {
 }
 
 bool check_truth(boost::any a, boost::any b, int cond) {
-	cout << "entered" <<  cond << "\n";
+	//cout << "entered" <<  cond << "\n";
 	if (a.type() != b.type())
 		throw TABLE_ERROR("Incompatible types used in condition");
 	if (cond < 0)
