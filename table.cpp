@@ -2,6 +2,11 @@
 
 static const int BATCH_SIZE = 50;
 
+static bool check_truth(boost::any a, boost::any b, int cond);
+static bool is_string_literal(const string &s);
+static bool is_int_literal(const string &s);
+static string random_str_gen(int length);
+
 static void generic_print(string type, boost::any value) {
 	if (type == "varchar")
 		cout << boost::any_cast<string>(value);
@@ -25,7 +30,7 @@ Table::Table(const string &a_name, const vector<string> &a_attr_names, const vec
 	eof = false;
 	tuples_read = 0;
 	tuples.clear();
-	file = "db/tmp/" + name;
+	file = "db/tmp/" + random_str_gen(8);
 	md_file = file + "_metadata";
 	f_read = new ifstream;
 	f_write = new ofstream;
@@ -35,10 +40,15 @@ Table::Table(const string &a_name, const vector<string> &a_attr_names, const vec
 	f_write->open(file.c_str(), fstream::out | fstream::app);
 	md_read->open(md_file.c_str(), fstream::in);
 	md_write->open(md_file.c_str(), fstream::out | fstream::app);
+	*md_write << name << "\n";
+	it = attr_names.begin();
+	for (; it != attr_names.end(); it++) {
+		*md_write << *it << ";" << attr_type_map[*it] << "\n";
+	}
+	md_write->close();
 }
 
 Table::Table(const string &a_file, const string &a_md_file) {
-	cout << a_file << " " << a_md_file << endl;
 	f_read = new ifstream;
 	f_write = new ofstream;
 	md_read = new ifstream;
@@ -52,17 +62,20 @@ Table::Table(const string &a_file, const string &a_md_file) {
 	eof = false;
 	tuples_read = 0;
 	string attr_name, attr_type;
+	string line;
 	tuples.clear();
 	while (true) {
 		if (name == "") {
-			*md_read >> name;
+			getline(*md_read, name);
 			continue;
 		}
-		*md_read >> attr_name;
-		if (attr_name == "" || md_read->eof())
+		getline(*md_read, line);
+		if (line == "" || md_read->eof())
 			break;
-		*md_read >> attr_type;
-		if (attr_type == "")
+		istringstream ss(line);
+		getline(ss, attr_name, ';');
+		getline(ss, attr_type, ';');
+		if (attr_name == "" || attr_type == "")
 			throw TABLE_ERROR("Corrupt meta data file: \'" + a_md_file + "\'");
 		attr_names.push_back(attr_name);
 		attr_types.push_back(attr_type);
@@ -121,19 +134,19 @@ void Table::insert_tuple(const Tuple &t) {
 	f_write->close();
 	f_write->open(file.c_str(), fstream::out | fstream::app);
 	vector<string>::iterator it = attr_names.begin();
+	cout << "here\n";
 	while (it != attr_names.end()) {
 		Tuple::const_iterator it2 = t.find(*it);
 		if (attr_type_map[*it] == "varchar") {
-			//cout << boost::any_cast<string>(it2->second) << " " << name << endl;
 			*f_write << boost::any_cast<string>(it2->second);
 		} else {
-			//cout << boost::any_cast<int>(it2->second) << " " << name << endl;
 			*f_write << boost::any_cast<int>(it2->second);
 		}
 		it++;
 		if (it != attr_names.end())
 			*f_write << ";";
 	}
+	cout << "finished\n";
 	*f_write << "\n";
 	f_write->close();
 }
@@ -155,17 +168,17 @@ Table Table::cross(Table t) {
 	vector<string> c_attr_names, c_attr_types;
 	vector<string>::const_iterator it = attr_names.begin();
 	for (; it != attr_names.end(); it++) {
-		c_attr_names.push_back(*it + "1");
+		c_attr_names.push_back(name + "." + *it);
 		string tmp = (attr_type_map.find(*it))->second;
 		c_attr_types.push_back(tmp);
 	}
 	vector<string>::const_iterator it2 = t.attr_names.begin();
 	for (; it2 != t.attr_names.end(); it2++) {
-		c_attr_names.push_back(*it2 + "2");
+		c_attr_names.push_back(t.name + "." + *it2);
 		string tmp = (t.attr_type_map.find(*it2))->second;
 		c_attr_types.push_back(tmp);
 	}
-	Table crossed("tmp_" + name + " x " + t.name, c_attr_names, c_attr_types);
+	Table crossed("tmp_" + name + "X" + t.name, c_attr_names, c_attr_types);
 	Tuple it3, it4;
 	Tuple::const_iterator it5;
 	Tuple::const_iterator it6;
@@ -174,13 +187,14 @@ Table Table::cross(Table t) {
 	while (!end_of_table()) {
 		it3 = next_tuple();
 		t.reset();
+		cout << t.end_of_table() <<endl;
 		while (!t.end_of_table()) {
 			it4 = t.next_tuple();
 			for (it5 = it3.begin(); it5 != it3.end(); it5++) {
-				tmp.insert(pair<string, boost::any>(it5->first + "1", it5->second));
+				tmp.insert(pair<string, boost::any>(name + "." + it5->first, it5->second));
 			}
 			for (it6 = it4.begin(); it6 != it4.end(); it6++) {
-				tmp.insert(pair<string, boost::any>(it6->first + "2", it6->second));
+				tmp.insert(pair<string, boost::any>(t.name + "." + it6->first, it6->second));
 			}
 			crossed.insert_tuple(tmp);
 			tmp.clear();
@@ -198,12 +212,11 @@ Table Table::project(const vector<string> &a_attr_names) {
 		p_attr_types.push_back(attr_type_map[*it]);
 	}
 	Table projected("tmp_p" + name, p_attr_names, p_attr_types);
-	vector<Tuple>::iterator it2 = tuples.begin();
 	Tuple tmp;
-	for (; it2 != tuples.end(); it2++) {
-		it = a_attr_names.begin();
-		for (; it != a_attr_names.end(); it++) {
-			tmp.insert(pair<string, boost::any>(*it, (*it2)[*it]));
+	while (!end_of_table()) {
+		tmp = next_tuple();
+		for (it = a_attr_names.begin(); it != a_attr_names.end(); it++) {
+			tmp.insert(pair<string, boost::any>(*it, tmp[*it]));
 		}
 		projected.insert_tuple(tmp);
 		tmp.clear();
@@ -225,29 +238,32 @@ Table Table::select(Predicate *p) {
 }
 
 void Table::rename(const string &a_name, const vector<string> &attrs) {
-	if (attrs.size() != attr_names.size())
+	cout << "size is " <<attrs.size() <<endl;
+	if (attrs.size() > 0 && attrs.size() != attr_names.size())
 		throw TABLE_ERROR("Insufficient new attribute names passed");
 	if (a_name != "")
 		name = a_name;
-	if (attrs.size() == 0)
-		return;
-	map<string, string> new_attr_type_map;
-	vector<string>::iterator it = attr_names.begin();
-	vector<string>::const_iterator it2 = attrs.begin();
-	for (; it != attr_names.end(); it++, it2++) {
-		new_attr_type_map[*it2] = attr_type_map[*it];
+	if (attrs.size() > 0) {
+		map<string, string> new_attr_type_map;
+		vector<string>::iterator it = attr_names.begin();
+		vector<string>::const_iterator it2 = attrs.begin();
+		for (; it != attr_names.end(); it++, it2++) {
+			new_attr_type_map[*it2] = attr_type_map[*it];
+		}
+		attr_names = attrs;
+		attr_type_map = new_attr_type_map;
 	}
-	attr_names = attrs;
-	attr_type_map = new_attr_type_map;
+	cout << name << " "<< attrs.size() << endl;
 	md_read->close();
 	md_write->close();
 	remove(md_file.c_str());
 	md_write->open(md_file.c_str(), fstream::out | fstream::app);
 	*md_write << name << endl;
-	it = attr_names.begin();
+	vector<string>::iterator it = attr_names.begin();
 	for (; it != attr_names.end(); it++) {
-		*md_write << *it << " " << attr_type_map[*it] << endl;
+		*md_write << *it << ";" << attr_type_map[*it] << endl;
 	}
+	md_write->close();
 	reset();
 }
 
@@ -423,4 +439,14 @@ static bool is_int_literal(const string &s) {
 	} catch (...) {
 		return false;
 	}
+}
+
+static string random_str_gen(int length) {
+    static string charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+    string result;
+    result.resize(length);
+    for (int i = 0; i < length; i++)
+        result[i] = charset[rand() % charset.length()];
+
+    return result;
 }

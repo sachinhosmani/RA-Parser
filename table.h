@@ -56,7 +56,4 @@ public:
 	inline TABLE_ERROR(const string &a_msg):msg(a_msg){};
 };
 
-static bool check_truth(boost::any a, boost::any b, int cond);
-static bool is_string_literal(const string &s);
-static bool is_int_literal(const string &s);
 #endif

@@ -1,7 +1,7 @@
 #include "parser.h"
 
 namespace {
-	const int START_INSTRUCTIONS_COUNT = 4;
+	const int START_INSTRUCTIONS_COUNT = 5;
 	string start_instructions[] = {"create table", "insert into", "project", "select", "rename"};
 	const int MIDDLE_INSTRUCTIONS_COUNT = 1;
 	string middle_instructions[] = {"X"};
@@ -199,20 +199,38 @@ Table rename_table(string query) {
 	Tokenizer t(query);
 	vector<string> attrs;
 	t.next_token();
-	string new_name = t.next_token(), token;
-	if (new_name == "(") {
-		new_name = "";
+	string new_name, token, table_name, first_token;
+	first_token = token = t.next_token();
+	bool attrs_exist = false;
+	if (token != "(") {
+		new_name = token;
+		token = t.next_token();
+		if (token == "(")
+			attrs_exist = true;
+	} else {
+		attrs_exist = true;
 	}
-	if (t.next_token() == "(" || new_name == "") {
-		while (true) {
-			token = t.next_token();
-			if (token == ")") {
-				break;
+	try {
+		if (attrs_exist) {
+			while (true) {
+				token = t.next_token();
+				if (token == ")")
+					break;
+				attrs.push_back(token);
+				token = t.next_token();
+				if (token == ")")
+					break;
+				if (token != ",")
+					throw SYNTAX_ERROR("rename", "attributes must be separated by commas");
 			}
-			attrs.push_back(token);
 		}
+		if (first_token == "(")
+			table_name = t.next_token();
+		else
+			table_name = token;
+	} catch (EOF_ERROR e) {
+		throw SYNTAX_ERROR("rename", "Ill formed query used");
 	}
-	string table_name = t.next_token();
 	if (table_name == "(") {
 		string rest = rest_of_query(t);
 		Table t = parse(rest.substr(0, rest.length() - 1));
@@ -226,6 +244,7 @@ Table rename_table(string query) {
 		Table t = ENV[table_name];
 		ENV.erase(table_name);
 		ENV.insert(pair<string, Table>(new_name, t));
+		return t;
 	}
 }
 
@@ -250,6 +269,7 @@ Table parse(string query) {
 			}
 		}
 	}
+	cout << "not found\n";
 	Tokenizer t(query);
 	string token = t.next_token();
 	int b_ctr = 0;

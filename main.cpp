@@ -4,74 +4,20 @@
 #include "table.h"
 #include "predicate.h"
 #include <boost/filesystem.hpp>
+#include <csignal>
 
 using namespace std;
 using namespace boost::filesystem;
 
 map<string, Table> ENV;
 
+void exit_handler(int a_signal);
 void init();
 
 int main() {
-	/*vector<string> attr_names;
-	attr_names.push_back("Name");
-	attr_names.push_back("ID");
-	attr_names.push_back("Phone");
-	vector<string> attr_types;
-	attr_types.push_back("varchar");
-	attr_types.push_back("int");
-	attr_types.push_back("int");
-	Table t("table1", attr_names, attr_types);
-	ENV.insert(pair<string, Table>("table1", t));
-	t = Table("table2", attr_names, attr_types);
-	ENV.insert(pair<string, Table>("table2", t));
-
-	Tuple t1;
-	t1.insert(pair<string, boost::any>("Name", string("A")));
-	t1.insert(pair<string, boost::any>("ID", 6));
-	t1.insert(pair<string, boost::any>("Phone", 6514654));
-	ENV["table1"].insert_tuple(t1);
-	t1.clear();
-	t1.insert(pair<string, boost::any>("Name", string("G")));
-	t1.insert(pair<string, boost::any>("ID", 45));
-	t1.insert(pair<string, boost::any>("Phone", 3462344));
-	ENV["table1"].insert_tuple(t1);
-	t1.clear();
-	t1.insert(pair<string, boost::any>("Name", string("Q")));
-	t1.insert(pair<string, boost::any>("ID", 3));
-	t1.insert(pair<string, boost::any>("Phone", 54675877));
-	ENV["table1"].insert_tuple(t1);
-	t1.clear();
-	t1.insert(pair<string, boost::any>("Name", string("R")));
-	t1.insert(pair<string, boost::any>("ID", 6));
-	t1.insert(pair<string, boost::any>("Phone", 6514654));
-	ENV["table1"].insert_tuple(t1);
-	t1.clear();
-	t1.insert(pair<string, boost::any>("Name", string("G")));
-	t1.insert(pair<string, boost::any>("ID", 5));
-	t1.insert(pair<string, boost::any>("Phone", 3462344));
-	ENV["table1"].insert_tuple(t1);
-	t1.clear();
-	t1.insert(pair<string, boost::any>("Name", string("A")));
-	t1.insert(pair<string, boost::any>("ID", 5));
-	t1.insert(pair<string, boost::any>("Phone", 54675877));
-	ENV["table1"].insert_tuple(t1);
-	Tuple t2;
-	t2.insert(pair<string, boost::any>("Name", string("B")));
-	t2.insert(pair<string, boost::any>("ID", 4));
-	t2.insert(pair<string, boost::any>("Phone", 67777775));
-	ENV["table2"].insert_tuple(t2);
-	t2.clear();
-	t2.insert(pair<string, boost::any>("Name", string("Y")));
-	t2.insert(pair<string, boost::any>("ID", 12));
-	t2.insert(pair<string, boost::any>("Phone", 45645545));
-	ENV["table2"].insert_tuple(t2);
-	t2.clear();
-	t2.insert(pair<string, boost::any>("Name", string("E")));
-	t2.insert(pair<string, boost::any>("ID", 1));
-	t2.insert(pair<string, boost::any>("Phone", 56767867));
-	ENV["table2"].insert_tuple(t2);*/
-
+	srand(time(NULL));
+	signal(SIGINT, exit_handler);
+	signal(SIGTERM, exit_handler);
 	init();
 	string s;
 	string query = "";
@@ -124,5 +70,17 @@ void init() {
 			Table t(main_file, md_file);
 			ENV.insert(pair<string, Table>(t.name, t));
 		}
+	}
+}
+
+void exit_handler(int a_signal) {
+	if (a_signal == SIGINT || a_signal == SIGTERM) {
+		ENV.clear();
+		path p("./db/tmp");
+		directory_iterator end;
+		for (directory_iterator it(p); it != end; ++it) {
+			remove(it->path().string().c_str());
+		}
+		exit(0);
 	}
 }
