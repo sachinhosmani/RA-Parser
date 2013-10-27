@@ -3,8 +3,8 @@
 namespace {
 	const int START_INSTRUCTIONS_COUNT = 5;
 	string start_instructions[] = {"create table", "insert into", "project", "select", "rename"};
-	const int MIDDLE_INSTRUCTIONS_COUNT = 1;
-	string middle_instructions[] = {"X"};
+	const int MIDDLE_INSTRUCTIONS_COUNT = 2;
+	string middle_instructions[] = {"X", "join"};
 }
 
 Table create_table(const string &query) {
@@ -84,6 +84,7 @@ Table insert_into(const string &query) {
 }
 
 Table cross_table(const string &query) {
+	cout << query << ": called with\n";
 	Tokenizer t(query);
 	bool t1_complex = false, t2_complex = false;
 	string table1 = t.next_token();
@@ -106,6 +107,8 @@ Table cross_table(const string &query) {
 		t2_complex = true;
 		table2 = rest_of_query(t);
 	}
+	boost::trim(table1);
+	boost::trim(table2);
 	if (t1_complex && t2_complex) {
 		return parse(table1.substr(0, table1.length() - 1)).cross(
 			   parse(table2.substr(0, table2.length() - 1)));
@@ -131,6 +134,7 @@ Table cross_table(const string &query) {
 }
 
 Table project_table(const string &query) {
+	cout << query << ": called with\n";
 	Tokenizer t(query);
 	t.next_token();
 	if (t.next_token() != "(") {
@@ -153,6 +157,7 @@ Table project_table(const string &query) {
 	string table_name = t.next_token();
 	if (table_name == "(") {
 		string rest = rest_of_query(t);
+		boost::trim(rest);
 		Table t = parse(rest.substr(0, rest.length() - 1));
 		return t.project(attrs);
 	}
@@ -183,6 +188,7 @@ Table select_table(const string &query) {
 		Predicate *p = create_predicate(select_condition);
 		if (table_name == "(") {
 			string rest = rest_of_query(t);
+			boost::trim(rest);
 			Table t = parse(rest.substr(0, rest.length() - 1));
 			return t.select(p);
 		}
@@ -196,6 +202,7 @@ Table select_table(const string &query) {
 }
 
 Table rename_table(string query) {
+	cout << query << ": called with\n";
 	Tokenizer t(query);
 	vector<string> attrs;
 	t.next_token();
@@ -233,6 +240,7 @@ Table rename_table(string query) {
 	}
 	if (table_name == "(") {
 		string rest = rest_of_query(t);
+		boost::trim(rest);
 		Table t = parse(rest.substr(0, rest.length() - 1));
 		t.rename(new_name, attrs);
 		if (new_name != "") {
@@ -252,12 +260,81 @@ Table rename_table(string query) {
 	}
 }
 
+Table join_table(const string &query) {
+	Tokenizer t(query);
+	bool t1_complex = false, t2_complex = false;
+	string table1 = t.next_token(), token;
+	if (table1 == "(") {
+		table1 = "";
+		t1_complex = true;
+		token;
+		while (true) {
+			token = t.next_token();
+			if (token == "join") {
+				break;
+			}
+			table1 += token + " ";
+		}
+	} else {
+		t.next_token();
+	}
+	token = t.next_token();
+	int b_ctr = 1;
+	if (token != "(") {
+		throw TABLE_ERROR("Theta join needs a condition.");
+	}
+	string condition = "(";
+	while (b_ctr != 0) {
+		token = t.next_token();
+		if (token == "(")
+			b_ctr++;
+		else if (token == ")")
+			b_ctr--;
+		condition += token + " ";
+	}
+	cout << "condition is " << condition << endl;
+	Predicate *p = create_predicate(condition);
+	cout << "created\n";
+	string table2 = t.next_token();
+	if (table2 == "(") {
+		t2_complex = true;
+		table2 = rest_of_query(t);
+	}
+	boost::trim(table1);
+	boost::trim(table2);
+	try {
+		if (t1_complex && t2_complex) {
+			return parse(table1.substr(0, table1.length() - 1)).theta_join(
+				   parse(table2.substr(0, table2.length() - 1)), p);
+		} else if (t1_complex) {
+			if (ENV.find(table2) == ENV.end()) {
+				throw SYNTAX_ERROR("theta_join", "Table \'" + table2 + "\' doesn't exist");
+			}
+			return parse(table1.substr(0, table1.length() - 1)).theta_join(ENV[table2], p);
+		} else if (t2_complex) {
+			if (ENV.find(table1) == ENV.end()) {
+				throw SYNTAX_ERROR("theta_join", "Table \'" + table1 + "\' doesn't exist");
+			}
+			return parse(table2.substr(0, table2.length() - 1)).theta_join(ENV[table1], p);
+		} else {
+			if (ENV.find(table1) == ENV.end()) {
+				throw SYNTAX_ERROR("theta_join", "Table \'" + table1 + "\' doesn't exist");
+			}
+			if (ENV.find(table2) == ENV.end()) {
+				throw SYNTAX_ERROR("theta_join", "Table \'" + table2 + "\' doesn't exist");
+			}
+			return ENV[table1].theta_join(ENV[table2], p);
+		}
+	} catch (TABLE_ERROR e) {
+		throw SYNTAX_ERROR("theta_join", e.msg);
+	} catch (SYNTAX_ERROR e) {
+		throw e;
+	}
+}
+
 Table parse(string query) {
 	cout << query << " is query\n";
 	boost::trim(query);
-	/*if (query.length() > 0 && query[0] == '(' && query[query.length() - 1] == ')') {
-		return parse(query.substr(1, query.length() - 2));
-	}*/
 	for (int i = 0; i < START_INSTRUCTIONS_COUNT; i++) {
 		if (query.find(start_instructions[i]) == 0) {
 			switch (i) {
@@ -297,6 +374,8 @@ Table parse(string query) {
 			switch (i) {
 				case 0:
 					return cross_table(query);
+				case 1:
+					return join_table(query);
 			}
 		}
 	}

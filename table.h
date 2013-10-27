@@ -43,6 +43,8 @@ public:
 	Table project(const vector<string> &a_attr_names);
 	Table select(Predicate *p);
 	void rename(const string &, const vector<string> &);
+	Table theta_join(Table t, Predicate *p);
+	Table natural_join(Table t);
 	void print();
 	void reset();
 	static bool satisfies(Predicate *p, const Tuple &t);

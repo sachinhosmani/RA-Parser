@@ -6,6 +6,7 @@ static bool check_truth(boost::any a, boost::any b, int cond);
 static bool is_string_literal(const string &s);
 static bool is_int_literal(const string &s);
 static string random_str_gen(int length);
+static bool satisfies_natural_join(const Tuple &t1, const Tuple &t2, const vector<string> &common_attrs);
 
 static void generic_print(string type, boost::any value) {
 	if (type == "varchar")
@@ -267,6 +268,92 @@ void Table::rename(const string &a_name, const vector<string> &attrs) {
 	reset();
 }
 
+Table Table::theta_join(Table t, Predicate *p) {
+	vector<string> c_attr_names, c_attr_types;
+	vector<string>::const_iterator it = attr_names.begin();
+	for (; it != attr_names.end(); it++) {
+		c_attr_names.push_back(name + "." + *it);
+		cout << name + "." + *it << endl;
+		string tmp = (attr_type_map.find(*it))->second;
+		c_attr_types.push_back(tmp);
+	}
+	vector<string>::const_iterator it2 = t.attr_names.begin();
+	for (; it2 != t.attr_names.end(); it2++) {
+		c_attr_names.push_back(t.name + "." + *it2);
+		string tmp = (t.attr_type_map.find(*it2))->second;
+		c_attr_types.push_back(tmp);
+	}
+	Table joined("tmp_" + name + "join" + t.name, c_attr_names, c_attr_types);
+	Tuple it3, it4;
+	Tuple::const_iterator it5;
+	Tuple::const_iterator it6;
+	Tuple tmp;
+	bool non_existent_attr = false;
+	reset();
+	while (!end_of_table()) {
+		it3 = next_tuple();
+		t.reset();
+		cout << t.end_of_table() <<endl;
+		while (!t.end_of_table()) {
+			it4 = t.next_tuple();
+			for (it5 = it3.begin(); it5 != it3.end(); it5++) {
+				tmp.insert(pair<string, boost::any>(name + "." + it5->first, it5->second));
+			}
+			for (it6 = it4.begin(); it6 != it4.end(); it6++) {
+				tmp.insert(pair<string, boost::any>(t.name + "." + it6->first, it6->second));
+			}
+			cout << "checking\n";
+			try {
+				if (Table::satisfies(p, tmp)) {
+					joined.insert_tuple(tmp);
+				}
+			}
+			catch (TABLE_ERROR e) {
+				non_existent_attr = true;
+			}
+			cout << "checked\n";
+			tmp.clear();
+		}
+	}
+	if (non_existent_attr)
+		throw TABLE_ERROR("Non-existent attributes used in the table");
+	return joined;
+}
+
+Table Table::natural_join(Table t) {
+	vector<string>::iterator it = attr_names.begin();
+	vector<string> new_attr_names, new_attr_types;
+	for (; it != attr_names.end(); it++) {
+		if (attr_type_map.find(*it) != attr_type_map.end()) {
+			new_attr_names.push_back(*it);
+			new_attr_types.push_back(attr_type_map[*it]);
+		}
+	}
+	Table joined(name + "njoin" + t.name, attr_names, attr_types);
+	Tuple t1, t2;
+	while (!end_of_table()) {
+		t1 = next_tuple();
+		t.reset();
+		Tuple tmp;
+		while (!t.end_of_table()) {
+			t2 = t.next_tuple();
+			if (satisfies_natural_join(t1, t2, new_attr_names)) {
+				Tuple::const_iterator it2 = t1.begin();
+				for (; it2 != t1.end(); it2++) {
+					tmp.insert(pair<string, boost::any>(it2->first, it2->second));
+				}
+				it2 = t2.begin();
+				for (; it2 != t2.end(); it2++) {
+					tmp.insert(pair<string, boost::any>(it2->first, it2->second));
+				}
+			}
+		}
+		joined.insert_tuple(tmp);
+		tmp.clear();
+	}
+	return joined;
+}
+
 void Table::print() {
 	Tuple t;
 	vector<string>::iterator it0 = attr_names.begin();
@@ -415,7 +502,24 @@ Tuple Table::line_to_tuple(const string &line) {
 	return t;
 }
 
-bool check_truth(boost::any a, boost::any b, int cond) {
+static bool satisfies_natural_join(const Tuple &t1, const Tuple &t2, const vector<string> &common_attrs) {
+	Tuple::const_iterator it2, it3;
+	for (vector<string>::const_iterator it = common_attrs.begin(); it != common_attrs.end(); it++) {
+		it2 = t1.find(*it);
+		it3 = t2.find(*it);
+		if (it2 == t1.end() || it3 == t2.end())
+			return false;
+		if (it2->second.type() != it3->second.type())
+			return false;
+		if (it2->second.type() == typeid(string))
+			return boost::any_cast<string>(it2->second) == boost::any_cast<string>(it3->second);
+		else if (it2->second.type() == typeid(int))
+			return boost::any_cast<int>(it2->second) == boost::any_cast<int>(it3->second);
+		return false;
+	}
+}
+
+static bool check_truth(boost::any a, boost::any b, int cond) {
 	//cout << "entered" <<  cond << "\n";
 	if (a.type() != b.type())
 		throw TABLE_ERROR("Incompatible types used in condition");
@@ -470,3 +574,4 @@ static string random_str_gen(int length) {
 
     return result;
 }
+

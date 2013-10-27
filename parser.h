@@ -15,6 +15,9 @@ Table parse(string query);
 Table create_query(const string &query);
 Table insert_into(const string &query);
 Table cross_table(const string &query);
+Table project_table(const string &query);
+Table select_table(const string &query);
+Table join_table(const string &query);
 
 string rest_of_query(Tokenizer &t);
 
