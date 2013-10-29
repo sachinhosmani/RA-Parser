@@ -84,7 +84,6 @@ Table insert_into(const string &query) {
 }
 
 Table cross_table(const string &query) {
-	cout << query << ": called with\n";
 	Tokenizer t(query);
 	bool t1_complex = false, t2_complex = false;
 	string table1 = t.next_token();
@@ -134,7 +133,6 @@ Table cross_table(const string &query) {
 }
 
 Table project_table(const string &query) {
-	cout << query << ": called with\n";
 	Tokenizer t(query);
 	t.next_token();
 	if (t.next_token() != "(") {
@@ -202,7 +200,6 @@ Table select_table(const string &query) {
 }
 
 Table rename_table(string query) {
-	cout << query << ": called with\n";
 	Tokenizer t(query);
 	vector<string> attrs;
 	t.next_token();
@@ -224,7 +221,6 @@ Table rename_table(string query) {
 				if (token == ")")
 					break;
 				attrs.push_back(token);
-				cout << token << " was read\n";
 				token = t.next_token();
 				if (token == ")")
 					break;
@@ -292,9 +288,7 @@ Table join_table(const string &query) {
 			b_ctr--;
 		condition += token + " ";
 	}
-	cout << "condition is " << condition << endl;
 	Predicate *p = create_predicate(condition);
-	cout << "created\n";
 	string table2 = t.next_token();
 	if (table2 == "(") {
 		t2_complex = true;
@@ -333,7 +327,6 @@ Table join_table(const string &query) {
 }
 
 Table natural_join(const string &query) {
-	cout << query << ": called with\n";
 	Tokenizer t(query);
 	bool t1_complex = false, t2_complex = false;
 	string table1 = t.next_token();
@@ -552,7 +545,6 @@ Table order_by(string query) {
 }
 
 Table parse(string query) {
-	cout << query << " is query\n";
 	boost::trim(query);
 	for (int i = 0; i < START_INSTRUCTIONS_COUNT; i++) {
 		if (query.find(start_instructions[i]) == 0) {
@@ -572,7 +564,6 @@ Table parse(string query) {
 			}
 		}
 	}
-	cout << "not found\n";
 	Tokenizer t(query);
 	string token = t.next_token();
 	int b_ctr = 0;

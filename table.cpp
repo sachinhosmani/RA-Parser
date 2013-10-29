@@ -102,10 +102,7 @@ void Table::reset() {
 }
 
 Tuple Table::next_tuple() {
-	cout <<"next\n";
-	cout << buffer_empty() << endl;
 	if (!buffer_empty()) {
-		cout << tuples.size() << " " << tuples_read  << endl;
 		return tuples[tuples_read++];
 	}
 	tuples.clear();
@@ -123,7 +120,6 @@ Tuple Table::next_tuple() {
 			break;*/
 			continue;
 		}
-		cout << line << endl;
 		tuples.push_back(line_to_tuple(line));
 		i++;
 	}
@@ -137,7 +133,6 @@ void Table::insert_tuple(const Tuple &t) {
 	f_write->close();
 	f_write->open(get_file_path().c_str(), fstream::out | fstream::app);
 	vector<string>::iterator it = attr_names.begin();
-	cout << "here\n";
 	while (it != attr_names.end()) {
 		Tuple::const_iterator it2 = t.find(*it);
 		if (attr_type_map[*it] == "varchar") {
@@ -149,7 +144,6 @@ void Table::insert_tuple(const Tuple &t) {
 		if (it != attr_names.end())
 			*f_write << ";";
 	}
-	cout << "finished\n";
 	*f_write << "\n";
 	f_write->close();
 }
@@ -190,7 +184,6 @@ Table Table::cross(Table t) {
 	while (!end_of_table()) {
 		it3 = next_tuple();
 		t.reset();
-		cout << t.end_of_table() <<endl;
 		while (!t.end_of_table()) {
 			it4 = t.next_tuple();
 			for (it5 = it3.begin(); it5 != it3.end(); it5++) {
@@ -242,7 +235,6 @@ Table Table::select(Predicate *p) {
 }
 
 void Table::rename(const string &a_name, const vector<string> &attrs) {
-	cout << "size is " <<attrs.size() <<endl;
 	if (attrs.size() > 0 && attrs.size() != attr_names.size())
 		throw TABLE_ERROR("Insufficient new attribute names passed");
 	if (a_name != "")
@@ -257,7 +249,6 @@ void Table::rename(const string &a_name, const vector<string> &attrs) {
 		attr_names = attrs;
 		attr_type_map = new_attr_type_map;
 	}
-	cout << name << " "<< attrs.size() << endl;
 	md_read->close();
 	md_write->close();
 	remove(md_file.c_str());
@@ -276,7 +267,6 @@ Table Table::theta_join(Table t, Predicate *p) {
 	vector<string>::const_iterator it = attr_names.begin();
 	for (; it != attr_names.end(); it++) {
 		c_attr_names.push_back(name + "." + *it);
-		cout << name + "." + *it << endl;
 		string tmp = (attr_type_map.find(*it))->second;
 		c_attr_types.push_back(tmp);
 	}
@@ -296,7 +286,6 @@ Table Table::theta_join(Table t, Predicate *p) {
 	while (!end_of_table()) {
 		it3 = next_tuple();
 		t.reset();
-		cout << t.end_of_table() <<endl;
 		while (!t.end_of_table()) {
 			it4 = t.next_tuple();
 			for (it5 = it3.begin(); it5 != it3.end(); it5++) {
@@ -305,7 +294,6 @@ Table Table::theta_join(Table t, Predicate *p) {
 			for (it6 = it4.begin(); it6 != it4.end(); it6++) {
 				tmp.insert(pair<string, boost::any>(t.name + "." + it6->first, it6->second));
 			}
-			cout << "checking\n";
 			try {
 				if (Table::satisfies(p, tmp)) {
 					joined.insert_tuple(tmp);
@@ -314,7 +302,6 @@ Table Table::theta_join(Table t, Predicate *p) {
 			catch (TABLE_ERROR e) {
 				non_existent_attr = true;
 			}
-			cout << "checked\n";
 			tmp.clear();
 		}
 	}
