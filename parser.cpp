@@ -1,8 +1,8 @@
 #include "parser.h"
 
 namespace {
-	const int START_INSTRUCTIONS_COUNT = 5;
-	string start_instructions[] = {"create table", "insert into", "project", "select", "rename"};
+	const int START_INSTRUCTIONS_COUNT = 7;
+	string start_instructions[] = {"create table", "insert into", "project", "select", "rename", "order by", "group by"};
 	const int MIDDLE_INSTRUCTIONS_COUNT = 6;
 	string middle_instructions[] = {"X", "join", "*", "aggregate", "union", "intersection"};
 }
@@ -382,7 +382,7 @@ Table natural_join(const string &query) {
 	}
 }
 
-Table aggregate(string query) {
+Table aggregate(const string &query) {
 	vector<string> group_attrs;
 	vector<string> funcs;
 	vector<string> attrs;
@@ -424,7 +424,7 @@ Table aggregate(string query) {
 	return parse(rest.substr(0, rest.length() - 1)).aggregate(group_attrs, funcs, attrs);
 }
 
-Table union(const string &query) {
+/*Table union(string query) {
 	cout << query << ": called with\n";
 	Tokenizer t(query);
 	bool t1_complex = false, t2_complex = false;
@@ -523,6 +523,33 @@ Table intersection(const string &query) {
 		return ENV[table1].intersection(ENV[table2]);
 	}
 }
+*/
+Table order_by(string query) {
+	Tokenizer t(query);
+	string token;
+	t.next_token();
+	t.next_token();
+
+	vector<string> attrs;
+	token = t.next_token();
+	if (token != "(")
+		throw SYNTAX_ERROR("order_by", "Missing (");
+	while (!t.eof()) {
+		token = t.next_token();
+		if (token == ")")
+			break;
+		attrs.push_back(token);
+		token = t.next_token();
+		if (token != ",")
+			break;
+	}
+	token = t.next_token();
+	if (token == "(") {
+		string rest = rest_of_query(t);
+		return parse(rest.substr(0, rest.length() - 1)).order_by(attrs);
+	}
+	return ENV[token].order_by(attrs);
+}
 
 Table parse(string query) {
 	cout << query << " is query\n";
@@ -540,6 +567,8 @@ Table parse(string query) {
 					return select_table(query);
 				case 4:
 					return rename_table(query);
+				case 5:
+					return order_by(query);
 			}
 		}
 	}
@@ -572,10 +601,10 @@ Table parse(string query) {
 					return natural_join(query);
 				case 3:
 					return aggregate(query);
-				case 4:
-					return union(query);
+				/*case 4:
+					//return union(query);
 				case 5:
-					return intersection(query);
+					//return intersection(query);*/
 			}
 		}
 	}

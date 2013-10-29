@@ -446,6 +446,30 @@ Table Table::aggregate(const vector<string> &a_group_attrs, const vector<string>
 	return aggregated;
 }
 
+Table Table::order_by(const vector<string> &attrs) {
+	string sort_cmd = "sort -t \";\" ";
+	vector<string>::const_iterator it, it2;
+	vector<int> col_numbers;
+	for (it = attrs.begin(); it != attrs.end(); it++) {
+		int ctr = 0;
+		for (it2 = attr_names.begin(); it2 != attr_names.end(); it2++) {
+			ctr++;
+			if (*it2 == *it) {
+				col_numbers.push_back(ctr);
+			}
+		}
+	}
+	vector<int>::iterator it3 = col_numbers.begin();
+	for (; it3 != col_numbers.end(); it3++) {
+		sort_cmd += "-k " + boost::lexical_cast<string>(*it3) + "," + boost::lexical_cast<string>(*it3) + " ";
+	}
+	sort_cmd += get_file_path() + " -o " + get_file_path();
+	f_write->close();
+	system(sort_cmd.c_str());
+	reset();
+	return *this;
+}
+
 void Table::print() {
 	Tuple t;
 	vector<string>::iterator it0 = attr_names.begin();

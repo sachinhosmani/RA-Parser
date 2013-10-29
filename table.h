@@ -46,6 +46,7 @@ public:
 	Table theta_join(Table t, Predicate *p);
 	Table natural_join(Table t);
 	Table aggregate(const vector<string> &group_attrs, const vector<string> &funcs, const vector<string> &attrs);
+	Table order_by(const vector<string> &attrs);
 	void print();
 	void reset();
 	static bool satisfies(Predicate *p, const Tuple &t);
