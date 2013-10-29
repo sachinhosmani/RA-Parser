@@ -7,6 +7,7 @@ static bool is_string_literal(const string &s);
 static bool is_int_literal(const string &s);
 static string random_str_gen(int length);
 static bool satisfies_natural_join(const Tuple &t1, const Tuple &t2, const vector<string> &common_attrs);
+static bool same(const Tuple &t1, const Tuple &t2, const vector<string> &attrs);
 
 static void generic_print(string type, boost::any value) {
 	if (type == "varchar")
@@ -118,8 +119,9 @@ Tuple Table::next_tuple() {
 		}
 		getline(*f_read, line);
 		if (line == "") {
-			eof = true;
-			break;
+			/*eof = true;
+			break;*/
+			continue;
 		}
 		cout << line << endl;
 		tuples.push_back(line_to_tuple(line));
@@ -214,6 +216,7 @@ Table Table::project(const vector<string> &a_attr_names) {
 	}
 	Table projected("tmp_p" + name, p_attr_names, p_attr_types);
 	Tuple tmp;
+	reset();
 	while (!end_of_table()) {
 		tmp = next_tuple();
 		for (it = a_attr_names.begin(); it != a_attr_names.end(); it++) {
@@ -322,14 +325,26 @@ Table Table::theta_join(Table t, Predicate *p) {
 
 Table Table::natural_join(Table t) {
 	vector<string>::iterator it = attr_names.begin();
-	vector<string> new_attr_names, new_attr_types;
+	vector<string> new_attr_names, new_attr_types, common_attrs;
+	map<string, bool> added;
 	for (; it != attr_names.end(); it++) {
-		if (attr_type_map.find(*it) != attr_type_map.end()) {
-			new_attr_names.push_back(*it);
-			new_attr_types.push_back(attr_type_map[*it]);
-		}
+		added.insert(pair<string, bool>(*it, true));
+		new_attr_names.push_back(*it);
+		new_attr_types.push_back(attr_type_map[*it]);
 	}
-	Table joined(name + "njoin" + t.name, attr_names, attr_types);
+	for (it = t.attr_names.begin(); it != t.attr_names.end(); it++) {
+		if (added.find(*it) != added.end())
+			continue;
+		added.insert(pair<string, bool>(*it, true));
+		new_attr_names.push_back(*it);
+		new_attr_types.push_back(t.attr_type_map[*it]);
+	}
+	for (it = new_attr_names.begin(); it != new_attr_names.end(); it++) {
+		if (attr_type_map.find(*it) != attr_type_map.end() &&
+			t.attr_type_map.find(*it) != t.attr_type_map.end())
+			common_attrs.push_back(*it);
+	}
+	Table joined(name + "njoin" + t.name, new_attr_names, new_attr_types);
 	Tuple t1, t2;
 	while (!end_of_table()) {
 		t1 = next_tuple();
@@ -337,7 +352,7 @@ Table Table::natural_join(Table t) {
 		Tuple tmp;
 		while (!t.end_of_table()) {
 			t2 = t.next_tuple();
-			if (satisfies_natural_join(t1, t2, new_attr_names)) {
+			if (satisfies_natural_join(t1, t2, common_attrs)) {
 				Tuple::const_iterator it2 = t1.begin();
 				for (; it2 != t1.end(); it2++) {
 					tmp.insert(pair<string, boost::any>(it2->first, it2->second));
@@ -346,12 +361,89 @@ Table Table::natural_join(Table t) {
 				for (; it2 != t2.end(); it2++) {
 					tmp.insert(pair<string, boost::any>(it2->first, it2->second));
 				}
+				joined.insert_tuple(tmp);
+				tmp.clear();
 			}
 		}
-		joined.insert_tuple(tmp);
-		tmp.clear();
 	}
 	return joined;
+}
+
+Table Table::aggregate(const vector<string> &a_group_attrs, const vector<string> &funcs, const vector<string> &attrs) {
+	vector<string> group_attrs = a_group_attrs;
+	string sort_cmd = "sort -t \";\" ";
+	vector<string> old_gp_attrs = group_attrs;
+	vector<string> group_attr_types;
+	map<string, string> func_attr_map;
+	vector<string>::const_iterator it = funcs.begin();
+	vector<string>::const_iterator it2 = attrs.begin();
+	for (; it != funcs.end(); it++, it2++) {
+		func_attr_map.insert(pair<string, string>(*it, *it2));
+	}
+	vector<int> col_numbers;
+	for (it = group_attrs.begin(); it != group_attrs.end(); it++) {
+		int ctr = 0;
+		group_attr_types.push_back(attr_type_map[*it]);
+		for (it2 = attr_names.begin(); it2 != attr_names.end(); it2++) {
+			ctr++;
+			if (*it2 == *it) {
+				col_numbers.push_back(ctr);
+			}
+		}
+	}
+	it = funcs.begin();
+	it2 = attrs.begin();
+	for (; it != funcs.end(); it++, it2++) {
+		string a = *it;
+		string b = *it2;
+		group_attrs.push_back(a + b);
+		group_attr_types.push_back("int");
+	}
+	vector<int>::iterator it3 = col_numbers.begin();
+	for (; it3 != col_numbers.end(); it3++) {
+		sort_cmd += "-k " + boost::lexical_cast<string>(*it3) + "," + boost::lexical_cast<string>(*it3) + " ";
+	}
+	sort_cmd += get_file_path();
+	sort_cmd += " -o " + get_file_path();
+	system(sort_cmd.c_str());
+	Table aggregated(name + "aggregated", group_attrs, group_attr_types);
+	Tuple t, last_t;
+	reset();
+	int count = 0, sum = 0;
+	bool first = true;
+	while (!end_of_table()) {
+		t = next_tuple();
+		if ((!first && !same(last_t, t, old_gp_attrs)) || end_of_table()) {
+			Tuple tmp;
+			map<string, string>::iterator it5 = func_attr_map.begin();
+			for (; it5 != func_attr_map.end(); it5++) {
+				if (it5->first == "sum") {
+					tmp[it5->first+it5->second] = boost::any(sum);
+				}
+				if (it5->first == "avg") {
+					tmp[it5->first+it5->second] = boost::any(sum/count);
+				}
+				if (it5->first == "count") {
+					tmp[it5->first+it5->second] = boost::any(count);
+				}
+			}
+			for (it = old_gp_attrs.begin(); it != old_gp_attrs.end(); it++) {
+				tmp[*it] = last_t[*it];
+			}
+			aggregated.insert_tuple(tmp);
+			sum = 0; count = 0;
+		}
+		first = false;
+		last_t = t;
+		count++;
+		map<string, string>::iterator it5 = func_attr_map.begin();
+		for (; it5 != func_attr_map.end(); it5++) {
+			if (it5->first == "sum") {
+				sum += boost::any_cast<int>(t[it5->second]);
+			}
+		}
+	}
+	return aggregated;
 }
 
 void Table::print() {
@@ -575,3 +667,25 @@ static string random_str_gen(int length) {
     return result;
 }
 
+static bool same(const Tuple &t1, const Tuple &t2, const vector<string> &attrs) {
+	vector<string>::const_iterator it = attrs.begin();
+	Tuple::const_iterator it2, it3;
+	for (; it != attrs.end(); it++) {
+		it2 = t1.find(*it);
+		it3 = t2.find(*it);
+		if (it2 == t1.end() || it3 == t2.end())
+			return false;
+		if ((it2->second).type() != (it3->second).type())
+			return false;
+		if (it2->second.type() == typeid(string)) {
+			//cout << *it << " " << boost::any_cast<string>(it3->second) << " " << boost::any_cast<string>(it3->second) << endl;
+			if (boost::any_cast<string>(it2->second) != boost::any_cast<string>(it3->second))
+				return false;
+		}
+		else {
+			if (boost::any_cast<int>(it2->second) != boost::any_cast<int>(it3->second))
+				return false;
+		}
+	}
+	return true;
+}
