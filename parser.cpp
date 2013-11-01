@@ -417,7 +417,7 @@ Table aggregate(const string &query) {
 	return parse(rest.substr(0, rest.length() - 1)).aggregate(group_attrs, funcs, attrs);
 }
 
-/*Table union(string query) {
+Table union_table(const string &query) {
 	cout << query << ": called with\n";
 	Tokenizer t(query);
 	bool t1_complex = false, t2_complex = false;
@@ -444,18 +444,18 @@ Table aggregate(const string &query) {
 	boost::trim(table1);
 	boost::trim(table2);
 	if (t1_complex && t2_complex) {
-		return parse(table1.substr(0, table1.length() - 1)).union(
+		return parse(table1.substr(0, table1.length() - 1)).union_(
 			   parse(table2.substr(0, table2.length() - 1)));
 	} else if (t1_complex) {
 		if (ENV.find(table2) == ENV.end()) {
 			throw SYNTAX_ERROR("union(U)", "Table \'" + table2 + "\' doesn't exist");
 		}
-		return parse(table1.substr(0, table1.length() - 1)).union(ENV[table2]);
+		return parse(table1.substr(0, table1.length() - 1)).union_(ENV[table2]);
 	} else if (t2_complex) {
 		if (ENV.find(table1) == ENV.end()) {
 			throw SYNTAX_ERROR("union(U)", "Table \'" + table1 + "\' doesn't exist");
 		}
-		return parse(table2.substr(0, table2.length() - 1)).union(ENV[table1]);
+		return parse(table2.substr(0, table2.length() - 1)).union_(ENV[table1]);
 	} else {
 		if (ENV.find(table1) == ENV.end()) {
 			throw SYNTAX_ERROR("union(U)", "Table \'" + table1 + "\' doesn't exist");
@@ -463,11 +463,11 @@ Table aggregate(const string &query) {
 		if (ENV.find(table2) == ENV.end()) {
 			throw SYNTAX_ERROR("union(U)", "Table \'" + table2 + "\' doesn't exist");
 		}
-		return ENV[table1].union(ENV[table2]);
+		return ENV[table1].union_(ENV[table2]);
 	}
 }
 
-Table intersection(const string &query) {
+Table intersection_table(const string &query) {
 	cout << query << ": called with\n";
 	Tokenizer t(query);
 	bool t1_complex = false, t2_complex = false;
@@ -516,8 +516,8 @@ Table intersection(const string &query) {
 		return ENV[table1].intersection(ENV[table2]);
 	}
 }
-*/
-Table order_by(string query) {
+
+Table order_by(const string &query) {
 	Tokenizer t(query);
 	string token;
 	t.next_token();
@@ -592,10 +592,10 @@ Table parse(string query) {
 					return natural_join(query);
 				case 3:
 					return aggregate(query);
-				/*case 4:
-					//return union(query);
+				case 4:
+					return union_table(query);
 				case 5:
-					//return intersection(query);*/
+					return intersection_table(query);
 			}
 		}
 	}

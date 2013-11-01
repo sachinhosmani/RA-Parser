@@ -8,6 +8,7 @@ static bool is_int_literal(const string &s);
 static string random_str_gen(int length);
 static bool satisfies_natural_join(const Tuple &t1, const Tuple &t2, const vector<string> &common_attrs);
 static bool same(const Tuple &t1, const Tuple &t2, const vector<string> &attrs);
+static bool same(const Tuple &t1, const Tuple &t2);
 
 static void generic_print(string type, boost::any value) {
 	if (type == "varchar")
@@ -457,6 +458,54 @@ Table Table::order_by(const vector<string> &attrs) {
 	return *this;
 }
 
+Table Table::union_(Table t) {
+	if (!compatible(t))
+		throw TABLE_ERROR("Incompatible tables can't be unioned");
+	Table unioned(name + "union" + t.name, attr_names, attr_types);
+	reset();
+	t.reset();
+	Tuple t1, t2;
+	vector<string>::iterator it1, it2;
+	while (!end_of_table()) {
+		t1 = next_tuple();
+		unioned.insert_tuple(t1);
+	}
+	cout << "1\n";
+	while (!t.end_of_table()) {
+		cout << "3\n";
+		t1 = t.next_tuple();
+		it1 = attr_names.begin();
+		it2 = t.attr_names.begin();
+		for (; it1 != attr_names.end(); it1++, it2++) {
+			t2.insert(pair<string, boost::any>(*it1, t1[*it2]));
+		}
+		unioned.insert_tuple(t2);
+		t2.clear();
+	}
+	cout << "2\n";
+	return unioned;
+}
+
+Table Table::intersection(Table t) {
+	if (!compatible(t))
+		throw TABLE_ERROR("Incompatible tables can't be intersected");
+	Table intersected(name + "intersection" + t.name, attr_names, attr_types);
+	reset();
+	Tuple t1, t2;
+	while (!end_of_table()) {
+		t1 = next_tuple();
+		t.reset();
+		while (!t.end_of_table()) {
+			t2 = t.next_tuple();
+			if (same(t1, t2)) {
+				intersected.insert_tuple(t1);
+				break;
+			}
+		}
+	}
+	return intersected;
+}
+
 void Table::print() {
 	Tuple t;
 	vector<string>::iterator it0 = attr_names.begin();
@@ -605,6 +654,17 @@ Tuple Table::line_to_tuple(const string &line) {
 	return t;
 }
 
+bool Table::compatible(Table t) {
+	if (attr_type_map.size() != t.attr_type_map.size())
+		return false;
+	vector<string>::iterator it1, it2;
+	for (it1 = attr_names.begin(), it2 = t.attr_names.begin(); it1 != attr_names.end(); it1++, it2++) {
+		if (attr_type_map[*it1] != t.attr_type_map[*it2])
+			return false;
+	}
+	return true;
+}
+
 static bool satisfies_natural_join(const Tuple &t1, const Tuple &t2, const vector<string> &common_attrs) {
 	Tuple::const_iterator it2, it3;
 	for (vector<string>::const_iterator it = common_attrs.begin(); it != common_attrs.end(); it++) {
@@ -695,6 +755,28 @@ static bool same(const Tuple &t1, const Tuple &t2, const vector<string> &attrs) 
 		}
 		else {
 			if (boost::any_cast<int>(it2->second) != boost::any_cast<int>(it3->second))
+				return false;
+		}
+	}
+	return true;
+}
+
+static bool same(const Tuple &t1, const Tuple &t2) {
+	Tuple::const_iterator it, it2;
+	if (t1.size() != t2.size())
+		return false;
+	for (it = t1.begin(); it != t1.end(); it++) {
+		it2 = t2.find(it->first);
+		if (it2 == t1.end())
+			return false;
+		if ((it2->second).type() != (it->second).type())
+			return false;
+		if (it2->second.type() == typeid(string)) {
+			if (boost::any_cast<string>(it2->second) != boost::any_cast<string>(it->second))
+				return false;
+		}
+		else {
+			if (boost::any_cast<int>(it2->second) != boost::any_cast<int>(it2->second))
 				return false;
 		}
 	}

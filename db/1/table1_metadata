@@ -1,4 +1,4 @@
 t1
-q;varchar
-w;varchar
-e;int
+Name;varchar
+ID;varchar
+Phone;int

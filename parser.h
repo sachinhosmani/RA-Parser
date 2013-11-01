@@ -19,7 +19,9 @@ Table project_table(const string &query);
 Table select_table(const string &query);
 Table join_table(const string &query);
 Table natural_join(const string &query);
-Table order_by(string query);
+Table order_by(const string &query);
+Table union_table(const string &query);
+Table intersection_table(const string &query);
 
 string rest_of_query(Tokenizer &t);
 

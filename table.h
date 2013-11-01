@@ -47,8 +47,11 @@ public:
 	Table natural_join(Table t);
 	Table aggregate(const vector<string> &group_attrs, const vector<string> &funcs, const vector<string> &attrs);
 	Table order_by(const vector<string> &attrs);
+	Table union_(Table t);
+	Table intersection(Table t);
 	void print();
 	void reset();
+	bool compatible(Table t);
 	static bool satisfies(Predicate *p, const Tuple &t);
 	static bool satisfies(Simple_Predicate *p, const Tuple &t);
 	static boost::any parse_e_tree(Expression_Tree *e, const Tuple &t);
