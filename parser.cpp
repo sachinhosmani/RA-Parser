@@ -3,8 +3,8 @@
 namespace {
 	const int START_INSTRUCTIONS_COUNT = 7;
 	string start_instructions[] = {"create table", "insert into", "project", "select", "rename", "order by", "group by"};
-	const int MIDDLE_INSTRUCTIONS_COUNT = 6;
-	string middle_instructions[] = {"X", "join", "*", "aggregate", "union", "intersection"};
+	const int MIDDLE_INSTRUCTIONS_COUNT = 7;
+	string middle_instructions[] = {"X", "join", "*", "aggregate", "union", "intersection", "diff"};
 }
 
 Table create_table(const string &query) {
@@ -162,7 +162,11 @@ Table project_table(const string &query) {
 	if (ENV.find(table_name) == ENV.end()) {
 		throw SYNTAX_ERROR("project", "Table \'" + table_name + "\'' doesn't exist");
 	}
-	return ENV[table_name].project(attrs);
+	try {
+		return ENV[table_name].project(attrs);
+	} catch (TABLE_ERROR e) {
+		throw SYNTAX_ERROR("project", e.msg);
+	}
 }
 
 Table select_table(const string &query) {
@@ -238,7 +242,11 @@ Table rename_table(string query) {
 		string rest = rest_of_query(t);
 		boost::trim(rest);
 		Table t = parse(rest.substr(0, rest.length() - 1));
-		t.rename(new_name, attrs);
+		try {
+			t.rename(new_name, attrs);
+		} catch (TABLE_ERROR e) {
+			throw SYNTAX_ERROR("rename", e.msg);
+		}
 		if (new_name != "") {
 			t.make_permanent();
 			ENV.insert(pair<string, Table>(new_name, t));
@@ -248,7 +256,11 @@ Table rename_table(string query) {
 		if (ENV.find(table_name) == ENV.end()) {
 			throw(SYNTAX_ERROR("rename", "No such table \'" + table_name + "\' exists"));
 		}
-		ENV[table_name].rename(new_name, attrs);
+		try {
+			ENV[table_name].rename(new_name, attrs);
+		} catch (TABLE_ERROR e) {
+			throw SYNTAX_ERROR("rename", e.msg);
+		}
 		Table t = ENV[table_name];
 		ENV.erase(table_name);
 		ENV.insert(pair<string, Table>(new_name, t));
@@ -351,27 +363,31 @@ Table natural_join(const string &query) {
 	}
 	boost::trim(table1);
 	boost::trim(table2);
-	if (t1_complex && t2_complex) {
-		return parse(table1.substr(0, table1.length() - 1)).natural_join(
-			   parse(table2.substr(0, table2.length() - 1)));
-	} else if (t1_complex) {
-		if (ENV.find(table2) == ENV.end()) {
-			throw SYNTAX_ERROR("natural_join(X)", "Table \'" + table2 + "\' doesn't exist");
+	try {
+		if (t1_complex && t2_complex) {
+			return parse(table1.substr(0, table1.length() - 1)).natural_join(
+				   parse(table2.substr(0, table2.length() - 1)));
+		} else if (t1_complex) {
+			if (ENV.find(table2) == ENV.end()) {
+				throw SYNTAX_ERROR("natural_join(X)", "Table \'" + table2 + "\' doesn't exist");
+			}
+			return parse(table1.substr(0, table1.length() - 1)).natural_join(ENV[table2]);
+		} else if (t2_complex) {
+			if (ENV.find(table1) == ENV.end()) {
+				throw SYNTAX_ERROR("natural_join(X)", "Table \'" + table1 + "\' doesn't exist");
+			}
+			return parse(table2.substr(0, table2.length() - 1)).natural_join(ENV[table1]);
+		} else {
+			if (ENV.find(table1) == ENV.end()) {
+				throw SYNTAX_ERROR("natural_join(X)", "Table \'" + table1 + "\' doesn't exist");
+			}
+			if (ENV.find(table2) == ENV.end()) {
+				throw SYNTAX_ERROR("natural_join(X)", "Table \'" + table2 + "\' doesn't exist");
+			}
+			return ENV[table1].natural_join(ENV[table2]);
 		}
-		return parse(table1.substr(0, table1.length() - 1)).natural_join(ENV[table2]);
-	} else if (t2_complex) {
-		if (ENV.find(table1) == ENV.end()) {
-			throw SYNTAX_ERROR("natural_join(X)", "Table \'" + table1 + "\' doesn't exist");
-		}
-		return parse(table2.substr(0, table2.length() - 1)).natural_join(ENV[table1]);
-	} else {
-		if (ENV.find(table1) == ENV.end()) {
-			throw SYNTAX_ERROR("natural_join(X)", "Table \'" + table1 + "\' doesn't exist");
-		}
-		if (ENV.find(table2) == ENV.end()) {
-			throw SYNTAX_ERROR("natural_join(X)", "Table \'" + table2 + "\' doesn't exist");
-		}
-		return ENV[table1].natural_join(ENV[table2]);
+	} catch (TABLE_ERROR e) {
+		throw SYNTAX_ERROR("natural_join", e.msg);
 	}
 }
 
@@ -411,14 +427,21 @@ Table aggregate(const string &query) {
 	if (token != "(") {
 		if (ENV.find(token) == ENV.end())
 			throw SYNTAX_ERROR("aggregate", "Unknown table used");
-		return ENV[token].aggregate(group_attrs, funcs, attrs);
+		try {
+			return ENV[token].aggregate(group_attrs, funcs, attrs);
+		} catch (TABLE_ERROR e) {
+			throw SYNTAX_ERROR("aggregate", e.msg);
+		}
 	}
 	string rest = rest_of_query(t);
-	return parse(rest.substr(0, rest.length() - 1)).aggregate(group_attrs, funcs, attrs);
+	try {
+		return parse(rest.substr(0, rest.length() - 1)).aggregate(group_attrs, funcs, attrs);
+	} catch (TABLE_ERROR e) {
+		throw SYNTAX_ERROR("aggregate", e.msg);
+	}
 }
 
 Table union_table(const string &query) {
-	cout << query << ": called with\n";
 	Tokenizer t(query);
 	bool t1_complex = false, t2_complex = false;
 	string table1 = t.next_token();
@@ -443,32 +466,35 @@ Table union_table(const string &query) {
 	}
 	boost::trim(table1);
 	boost::trim(table2);
-	if (t1_complex && t2_complex) {
-		return parse(table1.substr(0, table1.length() - 1)).union_(
-			   parse(table2.substr(0, table2.length() - 1)));
-	} else if (t1_complex) {
-		if (ENV.find(table2) == ENV.end()) {
-			throw SYNTAX_ERROR("union(U)", "Table \'" + table2 + "\' doesn't exist");
+	try {
+		if (t1_complex && t2_complex) {
+			return parse(table1.substr(0, table1.length() - 1)).union_(
+				   parse(table2.substr(0, table2.length() - 1)));
+		} else if (t1_complex) {
+			if (ENV.find(table2) == ENV.end()) {
+				throw SYNTAX_ERROR("union(U)", "Table \'" + table2 + "\' doesn't exist");
+			}
+			return parse(table1.substr(0, table1.length() - 1)).union_(ENV[table2]);
+		} else if (t2_complex) {
+			if (ENV.find(table1) == ENV.end()) {
+				throw SYNTAX_ERROR("union(U)", "Table \'" + table1 + "\' doesn't exist");
+			}
+			return parse(table2.substr(0, table2.length() - 1)).union_(ENV[table1]);
+		} else {
+			if (ENV.find(table1) == ENV.end()) {
+				throw SYNTAX_ERROR("union(U)", "Table \'" + table1 + "\' doesn't exist");
+			}
+			if (ENV.find(table2) == ENV.end()) {
+				throw SYNTAX_ERROR("union(U)", "Table \'" + table2 + "\' doesn't exist");
+			}
+			return ENV[table1].union_(ENV[table2]);
 		}
-		return parse(table1.substr(0, table1.length() - 1)).union_(ENV[table2]);
-	} else if (t2_complex) {
-		if (ENV.find(table1) == ENV.end()) {
-			throw SYNTAX_ERROR("union(U)", "Table \'" + table1 + "\' doesn't exist");
-		}
-		return parse(table2.substr(0, table2.length() - 1)).union_(ENV[table1]);
-	} else {
-		if (ENV.find(table1) == ENV.end()) {
-			throw SYNTAX_ERROR("union(U)", "Table \'" + table1 + "\' doesn't exist");
-		}
-		if (ENV.find(table2) == ENV.end()) {
-			throw SYNTAX_ERROR("union(U)", "Table \'" + table2 + "\' doesn't exist");
-		}
-		return ENV[table1].union_(ENV[table2]);
+	} catch (TABLE_ERROR e) {
+		throw SYNTAX_ERROR("union", e.msg);
 	}
 }
 
 Table intersection_table(const string &query) {
-	cout << query << ": called with\n";
 	Tokenizer t(query);
 	bool t1_complex = false, t2_complex = false;
 	string table1 = t.next_token();
@@ -493,27 +519,84 @@ Table intersection_table(const string &query) {
 	}
 	boost::trim(table1);
 	boost::trim(table2);
-	if (t1_complex && t2_complex) {
-		return parse(table1.substr(0, table1.length() - 1)).intersection(
-			   parse(table2.substr(0, table2.length() - 1)));
-	} else if (t1_complex) {
-		if (ENV.find(table2) == ENV.end()) {
-			throw SYNTAX_ERROR("intersection", "Table \'" + table2 + "\' doesn't exist");
+	try {
+		if (t1_complex && t2_complex) {
+			return parse(table1.substr(0, table1.length() - 1)).intersection(
+				   parse(table2.substr(0, table2.length() - 1)));
+		} else if (t1_complex) {
+			if (ENV.find(table2) == ENV.end()) {
+				throw SYNTAX_ERROR("intersection", "Table \'" + table2 + "\' doesn't exist");
+			}
+			return parse(table1.substr(0, table1.length() - 1)).intersection(ENV[table2]);
+		} else if (t2_complex) {
+			if (ENV.find(table1) == ENV.end()) {
+				throw SYNTAX_ERROR("intersection", "Table \'" + table1 + "\' doesn't exist");
+			}
+			return parse(table2.substr(0, table2.length() - 1)).intersection(ENV[table1]);
+		} else {
+			if (ENV.find(table1) == ENV.end()) {
+				throw SYNTAX_ERROR("intersection", "Table \'" + table1 + "\' doesn't exist");
+			}
+			if (ENV.find(table2) == ENV.end()) {
+				throw SYNTAX_ERROR("intersection", "Table \'" + table2 + "\' doesn't exist");
+			}
+			return ENV[table1].intersection(ENV[table2]);
 		}
-		return parse(table1.substr(0, table1.length() - 1)).intersection(ENV[table2]);
-	} else if (t2_complex) {
-		if (ENV.find(table1) == ENV.end()) {
-			throw SYNTAX_ERROR("intersection", "Table \'" + table1 + "\' doesn't exist");
+	} catch (TABLE_ERROR e) {
+		throw SYNTAX_ERROR("intersection", e.msg);
+	}
+}
+
+Table set_difference_table(const string &query) {
+	Tokenizer t(query);
+	bool t1_complex = false, t2_complex = false;
+	string table1 = t.next_token();
+	if (table1 == "(") {
+		table1 = "";
+		t1_complex = true;
+		string token;
+		while (true) {
+			token = t.next_token();
+			if (token == "diff") {
+				break;
+			}
+			table1 += token + " ";
 		}
-		return parse(table2.substr(0, table2.length() - 1)).intersection(ENV[table1]);
 	} else {
-		if (ENV.find(table1) == ENV.end()) {
-			throw SYNTAX_ERROR("intersection", "Table \'" + table1 + "\' doesn't exist");
+		t.next_token();
+	}
+	string table2 = t.next_token();
+	if (table2 == "(") {
+		t2_complex = true;
+		table2 = rest_of_query(t);
+	}
+	boost::trim(table1);
+	boost::trim(table2);
+	try {
+		if (t1_complex && t2_complex) {
+			return parse(table1.substr(0, table1.length() - 1)).set_difference(
+				   parse(table2.substr(0, table2.length() - 1)));
+		} else if (t1_complex) {
+			if (ENV.find(table2) == ENV.end()) {
+				throw SYNTAX_ERROR("set_difference", "Table \'" + table2 + "\' doesn't exist");
+			}
+			return parse(table1.substr(0, table1.length() - 1)).set_difference(ENV[table2]);
+		} else if (t2_complex) {
+			if (ENV.find(table1) == ENV.end()) {
+				throw SYNTAX_ERROR("set_difference", "Table \'" + table1 + "\' doesn't exist");
+			}
+			return parse(table2.substr(0, table2.length() - 1)).set_difference(ENV[table1]);
+		} else {
+			if (ENV.find(table1) == ENV.end()) {
+				throw SYNTAX_ERROR("set_difference", "Table \'" + table1 + "\' doesn't exist");
+			}
+			if (ENV.find(table2) == ENV.end()) {
+				throw SYNTAX_ERROR("set_difference", "Table \'" + table2 + "\' doesn't exist");
+			}
+			return ENV[table1].set_difference(ENV[table2]);
 		}
-		if (ENV.find(table2) == ENV.end()) {
-			throw SYNTAX_ERROR("intersection", "Table \'" + table2 + "\' doesn't exist");
-		}
-		return ENV[table1].intersection(ENV[table2]);
+	} catch (TABLE_ERROR e) {
+		throw SYNTAX_ERROR("set_difference", e.msg);
 	}
 }
 
@@ -537,11 +620,15 @@ Table order_by(const string &query) {
 			break;
 	}
 	token = t.next_token();
-	if (token == "(") {
-		string rest = rest_of_query(t);
-		return parse(rest.substr(0, rest.length() - 1)).order_by(attrs);
+	try {
+		if (token == "(") {
+			string rest = rest_of_query(t);
+			return parse(rest.substr(0, rest.length() - 1)).order_by(attrs);
+		}
+		return ENV[token].order_by(attrs);
+	} catch (TABLE_ERROR e) {
+		throw SYNTAX_ERROR("order_by", e.msg);
 	}
-	return ENV[token].order_by(attrs);
 }
 
 Table parse(string query) {
@@ -596,6 +683,8 @@ Table parse(string query) {
 					return union_table(query);
 				case 5:
 					return intersection_table(query);
+				case 6:
+					return set_difference_table(query);
 			}
 		}
 	}

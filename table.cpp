@@ -9,6 +9,8 @@ static string random_str_gen(int length);
 static bool satisfies_natural_join(const Tuple &t1, const Tuple &t2, const vector<string> &common_attrs);
 static bool same(const Tuple &t1, const Tuple &t2, const vector<string> &attrs);
 static bool same(const Tuple &t1, const Tuple &t2);
+static bool same_type_insensitive(const Tuple &t1, const vector<string> &attr_names_1,
+								  const Tuple &t2, const vector<string> &attr_names_2);
 
 static void generic_print(string type, boost::any value) {
 	if (type == "varchar")
@@ -354,6 +356,7 @@ Table Table::natural_join(Table t) {
 			}
 		}
 	}
+	cout << "hre\n";
 	return joined;
 }
 
@@ -470,7 +473,6 @@ Table Table::union_(Table t) {
 		t1 = next_tuple();
 		unioned.insert_tuple(t1);
 	}
-	cout << "1\n";
 	while (!t.end_of_table()) {
 		cout << "3\n";
 		t1 = t.next_tuple();
@@ -482,7 +484,6 @@ Table Table::union_(Table t) {
 		unioned.insert_tuple(t2);
 		t2.clear();
 	}
-	cout << "2\n";
 	return unioned;
 }
 
@@ -497,13 +498,37 @@ Table Table::intersection(Table t) {
 		t.reset();
 		while (!t.end_of_table()) {
 			t2 = t.next_tuple();
-			if (same(t1, t2)) {
+			if (same_type_insensitive(t1, attr_names, t2, t.attr_names)) {
 				intersected.insert_tuple(t1);
 				break;
 			}
 		}
 	}
 	return intersected;
+}
+Table
+ Table::set_difference(Table t) {
+	if (!compatible(t))
+		throw TABLE_ERROR("Incompatible tables can't be subtracted");
+	Table diffed(name + "diff" + t.name, attr_names, attr_types);
+	reset();
+	Tuple t1, t2;
+	bool found;
+	while (!end_of_table()) {
+		t1 = next_tuple();
+		t.reset();
+		found = false;
+		while (!t.end_of_table()) {
+			t2 = t.next_tuple();
+			if (same_type_insensitive(t1, attr_names, t2, t.attr_names)) {
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+			diffed.insert_tuple(t1);
+	}
+	return diffed;
 }
 
 void Table::print() {
@@ -514,14 +539,18 @@ void Table::print() {
 	}
 	cout << endl;
 	reset();
-	while (!end_of_table()) {
-		t = next_tuple();
-		it0 = attr_names.begin();
-		for (; it0 != attr_names.end(); it0++) {
-			generic_print(attr_type_map[*it0], t[*it0]);
-			cout << "   ";
+	try {
+		while (!end_of_table()) {
+			t = next_tuple();
+			it0 = attr_names.begin();
+			for (; it0 != attr_names.end(); it0++) {
+				generic_print(attr_type_map[*it0], t[*it0]);
+				cout << "   ";
+			}
+			cout << "\n";
 		}
-		cout << "\n";
+	} catch (...) {
+		cout << "End of table reached\n";
 	}
 }
 
@@ -675,11 +704,15 @@ static bool satisfies_natural_join(const Tuple &t1, const Tuple &t2, const vecto
 		if (it2->second.type() != it3->second.type())
 			return false;
 		if (it2->second.type() == typeid(string))
-			return boost::any_cast<string>(it2->second) == boost::any_cast<string>(it3->second);
+			if (boost::any_cast<string>(it2->second) != boost::any_cast<string>(it3->second))
+				return false;
 		else if (it2->second.type() == typeid(int))
-			return boost::any_cast<int>(it2->second) == boost::any_cast<int>(it3->second);
-		return false;
+			if (boost::any_cast<int>(it2->second) != boost::any_cast<int>(it3->second))
+				return false;
+		else
+			return false;
 	}
+	return true;
 }
 
 static bool check_truth(boost::any a, boost::any b, int cond) {
@@ -779,6 +812,28 @@ static bool same(const Tuple &t1, const Tuple &t2) {
 			if (boost::any_cast<int>(it2->second) != boost::any_cast<int>(it2->second))
 				return false;
 		}
+	}
+	return true;
+}
+
+static bool same_type_insensitive(const Tuple &t1, const vector<string> &attr_names_1,
+								  const Tuple &t2, const vector<string> &attr_names_2) {
+	if (t1.size() != t2.size())
+		return false;
+	vector<string>::const_iterator it1 = attr_names_1.begin();
+	vector<string>::const_iterator it2 = attr_names_2.begin();
+	for (; it1 != attr_names_1.end(); it1++, it2++) {
+		boost::any a = (t1.find(*it1))->second;
+		boost::any b = (t2.find(*it2))->second;
+		if (b.type() != a.type())
+			return false;
+		if (b.type() == typeid(string))
+			if (boost::any_cast<string>(a) != boost::any_cast<string>(b))
+				return false;
+		else if (b.type() == typeid(int))
+			if (boost::any_cast<int>(a) != boost::any_cast<int>(b))
+				return false;
+		else return false;
 	}
 	return true;
 }

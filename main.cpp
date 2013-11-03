@@ -36,8 +36,11 @@ int main() {
 				t.print();
 				ENV.insert(pair<string, Table>(t.name, t));
 			} catch (SYNTAX_ERROR e) {
-				cerr << "Syntax Error in statement :: " << e.stmt << " :: " <<
+				cerr << "Error in statement :: " << e.stmt << " :: " <<
 				e.msg << endl;
+			} catch (...) {
+				cerr << "Internal error while processing query. Was a non-existent attribute "
+					 <<	"referenced or incompatible type checking done?\n";
 			}
 			query = "";
 		} else {

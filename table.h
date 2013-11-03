@@ -49,6 +49,7 @@ public:
 	Table order_by(const vector<string> &attrs);
 	Table union_(Table t);
 	Table intersection(Table t);
+	Table set_difference(Table t);
 	void print();
 	void reset();
 	bool compatible(Table t);
