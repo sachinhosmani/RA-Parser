@@ -336,6 +336,7 @@ Table Table::natural_join(Table t) {
 	}
 	Table joined(name + "njoin" + t.name, new_attr_names, new_attr_types);
 	Tuple t1, t2;
+	reset();
 	while (!end_of_table()) {
 		t1 = next_tuple();
 		t.reset();
@@ -356,7 +357,6 @@ Table Table::natural_join(Table t) {
 			}
 		}
 	}
-	cout << "hre\n";
 	return joined;
 }
 
@@ -474,7 +474,6 @@ Table Table::union_(Table t) {
 		unioned.insert_tuple(t1);
 	}
 	while (!t.end_of_table()) {
-		cout << "3\n";
 		t1 = t.next_tuple();
 		it1 = attr_names.begin();
 		it2 = t.attr_names.begin();
@@ -506,8 +505,8 @@ Table Table::intersection(Table t) {
 	}
 	return intersected;
 }
-Table
- Table::set_difference(Table t) {
+
+Table Table::set_difference(Table t) {
 	if (!compatible(t))
 		throw TABLE_ERROR("Incompatible tables can't be subtracted");
 	Table diffed(name + "diff" + t.name, attr_names, attr_types);
